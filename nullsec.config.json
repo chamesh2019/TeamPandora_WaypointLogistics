@@ -1,0 +1,11 @@
+{
+  "project": "waypoint",
+  "defaultEnvironment": "development",
+  "serverUrl": "https://nsec.chames.dev",
+  "environments": [
+    "development",
+    "staging",
+    "production"
+  ],
+  "storage": "keyring"
+}
