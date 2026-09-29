@@ -73,6 +73,40 @@ As specified in the competition Hackathon brief, four user accounts have been se
 
 ---
 
+---
+
+## Web Application (Next.js 16 + Tailwind CSS + shadcn/ui)
+
+The frontend is bootstrapped with **Next.js 16 (Turbopack)**, **Tailwind CSS v4**, and **shadcn/ui** components.
+
+### 1. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+### 2. Build for Production
+```bash
+npm run build
+npm run start
+```
+
+### 3. Adding More shadcn Components
+```bash
+npx shadcn@latest add <component-name>
+```
+Pre-installed UI components in `src/components/ui/`:
+- `button`
+- `card`
+- `input`
+- `badge`
+- `tabs`
+- `table`
+- `dialog`
+- `separator`
+
+---
+
 ## Directory Structure
 
 ```
@@ -80,9 +114,22 @@ waypoint/
 ├── docker-compose.yml       # PostgreSQL 16 container definition with healthchecks
 ├── .env.example             # Template environment variables
 ├── .env                     # Local environment settings
+├── components.json          # shadcn/ui configuration
+├── next.config.ts           # Next.js configuration
+├── tsconfig.json            # TypeScript configuration
+├── package.json             # NPM dependencies & scripts
 ├── README.md                # Setup instructions and seeded credentials
-└── db/
-    ├── 01-schema.sql        # Full DDL schema (25 tables, enums, FKs, indexes)
-    ├── 02-seed.sql          # Seed data (Depots, Brands, Outlets, Fleet, Orders)
-    └── 03-views.sql         # 19 Role-based and feasibility validator views
+├── db/
+│   ├── 01-schema.sql        # Full DDL schema (25 tables, enums, FKs, indexes)
+│   ├── 02-seed.sql          # Seed data (Depots, Brands, Outlets, Fleet, Orders)
+│   └── 03-views.sql         # 19 Role-based and feasibility validator views
+└── src/
+    ├── app/
+    │   ├── layout.tsx       # Root layout with dark mode & typography
+    │   ├── page.tsx         # Interactive role launcher & overview
+    │   └── globals.css      # Tailwind CSS v4 & theme variables
+    ├── components/
+    │   └── ui/              # shadcn components (button, card, tabs, badge, etc.)
+    └── lib/
+        └── utils.ts         # cn() utility helper for Tailwind classes
 ```
