@@ -37,8 +37,10 @@ export interface UserAccount {
 export interface MetricStat {
   label: string;
   value: string | number;
-  trend?: string;
-  trendDirection?: "up" | "down" | "neutral";
+  trend?: {
+    direction: "up" | "down" | "neutral";
+    label: string;
+  };
   note?: string;
   tone?: "green" | "blue" | "purple" | "orange" | "indigo" | "red" | "yellow";
   bars?: number[];
