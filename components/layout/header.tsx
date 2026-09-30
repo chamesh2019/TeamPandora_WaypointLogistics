@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
+import { DarkTabs } from "../design-system";
 import {
   Bell,
   ChevronDown,
@@ -93,6 +94,7 @@ export default function Header({
   className,
 }: HeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -110,6 +112,13 @@ export default function Header({
     );
     return activeHrefOverride ?? activeItem?.href;
   }, [activeHrefOverride, navItems, pathname]);
+
+  const navTabs = navItems.map((item) => ({
+    id: item.href,
+    label: item.name,
+    count: item.count,
+    icon: item.icon,
+  }));
 
   return (
     <header
@@ -135,41 +144,13 @@ export default function Header({
         </div>
       </Link>
 
-      <nav className="flex w-fit max-w-full shrink-0 items-center gap-1 overflow-x-auto rounded-full bg-white/[0.07] p-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeHref
-            ? activeHref === item.href
-            : matchesHref(pathname, item.href);
-
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all",
-                isActive
-                  ? "bg-[#F5C542] text-[#0F1928] shadow-sm"
-                  : "text-white/60 hover:bg-white/5 hover:text-white",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span>{item.name}</span>
-              {item.count !== undefined && (
-                <span
-                  className={cn(
-                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
-                    isActive
-                      ? "bg-[#0F1928]/20 text-[#0F1928]"
-                      : "bg-white/10 text-white/70",
-                  )}
-                >
-                  {item.count}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex w-fit max-w-full shrink-0 items-center overflow-x-auto">
+        <DarkTabs
+          activeTab={activeHref ?? navItems[0]?.href ?? "/"}
+          onSelect={(tabId) => router.push(tabId)}
+          tabs={navTabs}
+          className="shrink-0"
+        />
       </nav>
 
       <div className="ml-auto flex items-center gap-3">
