@@ -21,12 +21,12 @@ const storeNavItems = [
   { name: "Reports", href: "/store/reports", icon: BarChart3 },
 ];
 
-export default function OrdersPage() {
+export default function ClaimsPage() {
   return (
     <>
       <Header
         navItems={storeNavItems}
-        activeHref="/store/orders"
+        activeHref="/store/claims"
         brandName="Waypoint"
         brandSubtitle="Store Manager"
       />
@@ -34,7 +34,7 @@ export default function OrdersPage() {
       <div className="min-h-screen bg-[#ECEEF5] p-6">
         <div className="mx-auto max-w-6xl">
           <h1 className="text-2xl font-extrabold tracking-[-0.04em] text-[#0F1020]">
-            Orders
+            Claims
           </h1>
         </div>
       </div>
