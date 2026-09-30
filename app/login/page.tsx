@@ -95,6 +95,13 @@ function LoginForm() {
     const trimmedUser = username.trim().toLowerCase();
     const trimmedPass = password;
 
+    if (failCount >= 5) {
+      setError(
+        "Account temporarily locked due to 5 consecutive failed attempts. Contact IT support."
+      );
+      return;
+    }
+
     if (!trimmedUser || !trimmedPass) {
       setError("Please enter your username and password.");
       return;
@@ -127,8 +134,13 @@ function LoginForm() {
         return;
       }
 
-      // Successful authentication: determine destination route
-      if (redirectParam) {
+      // Successful authentication: determine destination route with open-redirect safeguard
+      const isSafeRedirect =
+        redirectParam &&
+        redirectParam.startsWith("/") &&
+        !redirectParam.startsWith("//");
+
+      if (isSafeRedirect) {
         router.push(redirectParam);
       } else {
         const userRole = (res?.data?.user as any)?.role || "dispatcher";
@@ -290,7 +302,7 @@ function LoginForm() {
             <button
               type="submit"
               className="login-submit"
-              disabled={loading}
+              disabled={loading || failCount >= 5}
             >
               {loading ? (
                 <span className="btn-spinner" />
