@@ -60,8 +60,7 @@ describe("Waypoint Better Auth Integration", () => {
     expect(res).toBeDefined();
     expect(res.user).toBeDefined();
     expect(res.user.id).toBe(createdUserId);
-    expect(res.session).toBeDefined();
-    expect(res.session.token).toBeDefined();
+    expect(res.token).toBeDefined();
   });
 
   it("should reject sign in with invalid password", async () => {
@@ -84,7 +83,7 @@ describe("Waypoint Better Auth Integration", () => {
       },
     });
 
-    const token = signInRes.session.token;
+    const token = signInRes.token;
     const sessionRes = await auth.api.getSession({
       headers: new Headers({
         authorization: `Bearer ${token}`,
@@ -104,7 +103,7 @@ describe("Waypoint Better Auth Integration", () => {
       },
     });
 
-    const token = signInRes.session.token;
+    const token = signInRes.token;
     const signOutRes = await auth.api.signOut({
       headers: new Headers({
         authorization: `Bearer ${token}`,

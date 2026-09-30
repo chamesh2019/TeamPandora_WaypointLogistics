@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS "user" (
   "emailVerified" BOOLEAN NOT NULL DEFAULT FALSE,
   "image" TEXT,
   "username" VARCHAR(50) UNIQUE,
+  "displayUsername" TEXT,
   "role" user_role NOT NULL DEFAULT 'dispatcher',
   "depotId" VARCHAR(20) REFERENCES depots(depot_id) ON DELETE SET NULL,
   "outletId" VARCHAR(20) REFERENCES outlets(outlet_id) ON DELETE SET NULL,
