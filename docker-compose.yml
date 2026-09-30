@@ -26,16 +26,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
     container_name: waypoint_web
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://${POSTGRES_USER:-waypoint_user}:${POSTGRES_PASSWORD:-waypoint_secure_pass}@postgres:5432/${POSTGRES_DB:-waypoint_db}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-waypoint_better_auth_secret_key_super_secure_32chars}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - WATCHPACK_POLLING=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       postgres:
         condition: service_healthy
