@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 export interface StatCardProps {
   icon?: React.ReactNode;
@@ -107,8 +107,8 @@ export function StatCard({
               trend.up === true
                 ? "text-[#10B981]"
                 : trend.up === false
-                ? "text-[#EF4444]"
-                : "text-[#7B7B9D]"
+                  ? "text-[#EF4444]"
+                  : "text-[#7B7B9D]"
             )}
           >
             {trend.up ? "▲" : trend.up === false ? "▼" : "•"} {trend.text}

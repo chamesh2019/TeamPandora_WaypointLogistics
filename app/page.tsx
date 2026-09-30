@@ -25,7 +25,7 @@ import {
   DarkSection,
   DarkSectionHeader,
   DarkRow,
-} from "@/components/design-system";
+} from "../components/design-system";
 import {
   Layers,
   Sparkles,
