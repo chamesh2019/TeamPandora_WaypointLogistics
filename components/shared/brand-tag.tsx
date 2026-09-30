@@ -1,6 +1,6 @@
 import React from "react";
-import { cn } from "@/lib/utils";
-import type { RetailBrand } from "@/lib/types";
+import { cn } from "../../lib/utils";
+import type { RetailBrand } from "../../lib/types";
 
 interface BrandTagProps {
   brand: RetailBrand | string;

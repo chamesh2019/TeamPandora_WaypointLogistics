@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   isError?: boolean;
@@ -15,7 +15,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           "w-full h-[42px] px-3 border border-black/[0.07] dark:border-white/[0.08] rounded-lg bg-[#F5F6FB] dark:bg-[#1C1C38] text-[#0F1020] dark:text-white text-xs outline-none transition-all duration-150 placeholder:text-slate-400 dark:placeholder:text-slate-500",
           "focus:border-[#F5C542] focus:bg-white dark:focus:bg-[#141425] focus:shadow-[0_0_0_3px_rgba(245,197,66,0.18)]",
           isError &&
-            "border-[#EF4444] focus:border-[#EF4444] focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]",
+          "border-[#EF4444] focus:border-[#EF4444] focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]",
           className
         )}
         {...props}

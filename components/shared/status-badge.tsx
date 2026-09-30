@@ -1,6 +1,6 @@
 import React from "react";
-import { cn } from "@/lib/utils";
-import type { OrderLifecycleState, TripStatus } from "@/lib/types";
+import { cn } from "../../lib/utils";
+import type { OrderLifecycleState, TripStatus } from "../../lib/types";
 
 type BadgeStatus = OrderLifecycleState | TripStatus | "unsent" | "viewed" | "active" | "done" | "pending";
 
