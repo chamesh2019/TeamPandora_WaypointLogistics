@@ -9,11 +9,31 @@ RUN apk add --no-cache libc6-compat
 # 1. Dependencies Stage
 # -------------------------------------------------------------
 FROM base AS deps
+WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # -------------------------------------------------------------
-# 2. Builder Stage (Compiles Next.js standalone application)
+# 2. Development Stage (Live editing & Fast Refresh)
+# -------------------------------------------------------------
+FROM base AS dev
+WORKDIR /app
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV WATCHPACK_POLLING=true
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+
+# -------------------------------------------------------------
+# 3. Builder Stage (Compiles Next.js standalone application)
 # -------------------------------------------------------------
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
