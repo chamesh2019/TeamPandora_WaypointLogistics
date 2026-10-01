@@ -16,6 +16,7 @@ import {
   FieldLabel,
 } from "../../../components/design-system";
 import { cn } from "../../../lib/utils";
+import { getCutoffInfo, type CutoffInfo } from "../../../lib/utils/cutoff";
 
 export interface PlaceOrderFormData {
   deliveryDate: string;
@@ -130,10 +131,15 @@ export default function PlaceOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cutoffNotice, setCutoffNotice] = useState<string | null>(null);
+  const [cutoffInfo, setCutoffInfo] = useState<CutoffInfo>(() => getCutoffInfo());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      setCutoffInfo(getCutoffInfo());
+    }, 60000);
     return () => {
+      clearInterval(interval);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
@@ -268,10 +274,18 @@ export default function PlaceOrderForm({
         </p>
 
         {/* Cutoff banner */}
-        <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[#FDE5BD] bg-[#FFF8EC] px-3.5 py-2.5 text-[#B45309]">
+        <div
+          data-testid="cutoff-status-banner"
+          className={cn(
+            "mt-4 flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5",
+            cutoffInfo.isAfterCutoff
+              ? "border-[#FDE5BD] bg-[#FFF8EC] text-[#B45309]"
+              : "border-[#FDE5BD] bg-[#FFF8EC] text-[#B45309]"
+          )}
+        >
           <Clock className="h-3.5 w-3.5 shrink-0 text-[#D97706]" />
           <span className="text-[11px] font-semibold">
-            Cutoff: 16:00 today · 2h 14m remaining
+            {cutoffInfo.bannerText}
           </span>
         </div>
 

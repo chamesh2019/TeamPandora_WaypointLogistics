@@ -203,6 +203,15 @@ describe("Store Forms Integration", () => {
       expect(source).toContain("onSuccess(response.data, notice)");
       expect(source).toContain("setTimeout");
     });
+
+    it("displays dynamic cutoff countdown instead of static hardcoded string", () => {
+      const source = fs.readFileSync(
+        path.resolve(__dirname, "../app/store/orders/place-order-form.tsx"),
+        "utf-8"
+      );
+      expect(source).toContain("getCutoffInfo");
+      expect(source).not.toContain("Cutoff: 16:00 today · 2h 14m remaining");
+    });
   });
 
   describe("NewClaimForm Integration", () => {
