@@ -119,28 +119,28 @@ export default function ReportsPage() {
               return (
                 <div
                   key={card.label}
-                  className="rounded-[14px] border border-black/[0.07] bg-white p-4 shadow-[0_2px_12px_rgba(15,16,32,0.05)]"
+                  className="rounded-[16px] border border-black/[0.07] bg-white p-[26px] shadow-[0_2px_12px_rgba(15,16,32,0.05),0_0_0_1px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_28px_rgba(15,16,32,0.1)] hover:-translate-y-[2px] transition-all duration-200"
                 >
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-medium text-[#7B7B9D]">
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <span className="text-[12px] font-medium text-[#7B7B9D]">
                       {card.label}
                     </span>
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-[9px] ${toneClasses.badge}`}>
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneClasses!.badge}`}>
                       <Icon className="h-4 w-4" />
                     </div>
                   </div>
 
-                  <div className="text-[18px] font-extrabold tracking-[-0.04em] text-[#0F1020] sm:text-[20px]">
+                  <div className="mb-2 text-[36px] font-extrabold tracking-[-0.04em] text-[#0F1020] leading-none">
                     {card.value}
                   </div>
-                  <div className="mt-1 text-[10px] text-[#7B7B9D]">{card.note}</div>
+                  <div className="text-[10px] font-semibold text-[#7B7B9D]">{card.note}</div>
 
-                  <div className="mt-3 flex h-[32px] items-end gap-[3px]">
+                  <div className="mt-4 flex h-[44px] items-end gap-[3px]">
                     {card.bars.map((bar, index) => (
                       <div
                         key={`${card.label}-${index}`}
-                        className={`flex-1 rounded-t-[3px] ${index === card.bars.length - 1 ? toneClasses.active : toneClasses.bar}`}
-                        style={{ height: `${Math.max(20, bar)}%` }}
+                        className={`flex-1 rounded-t-[3px] ${index === card.bars.length - 1 ? toneClasses!.active : toneClasses!.bar}`}
+                        style={{ height: `${Math.max(12, bar)}%` }}
                       />
                     ))}
                   </div>

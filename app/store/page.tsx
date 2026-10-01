@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Header from "../../components/layout/header";
 import { Button, Panel, StatCard } from "../../components/design-system";
 import { useSession } from "../../lib/auth-client";
+import PlaceOrderForm from "./orders/place-order-form";
 import {
   AlertTriangle,
   ArrowRight,
@@ -34,6 +36,7 @@ const metricBars = {
 };
 
 export default function StorePage() {
+  const [placeOrderOpen, setPlaceOrderOpen] = useState(false);
   const { data: session } = useSession();
   const userName = session?.user?.name || session?.user?.username || "User";
 
@@ -70,6 +73,7 @@ export default function StorePage() {
               type="button"
               variant="primary"
               className="px-4 py-2.5 text-[12px] font-bold"
+              onClick={() => setPlaceOrderOpen(true)}
             >
               <span className="text-base leading-none">+</span>
               Place order
@@ -262,6 +266,10 @@ export default function StorePage() {
           </div>
         </div>
       </div>
+
+      {placeOrderOpen && (
+        <PlaceOrderForm onClose={() => setPlaceOrderOpen(false)} />
+      )}
     </>
   );
 }

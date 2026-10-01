@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Header from "../../../components/layout/header";
 import { Button, StatCard } from "../../../components/design-system";
+import PlaceOrderForm from "./place-order-form";
 import {
   AlertTriangle,
   BarChart3,
@@ -72,6 +74,8 @@ const metricBars = {
 };
 
 export default function OrdersPage() {
+  const [placeOrderOpen, setPlaceOrderOpen] = useState(false);
+
   return (
     <>
       <Header
@@ -97,6 +101,7 @@ export default function OrdersPage() {
               type="button"
               variant="primary"
               className="px-4 py-2.5 text-[12px] font-bold"
+              onClick={() => setPlaceOrderOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               Place order
@@ -216,6 +221,10 @@ export default function OrdersPage() {
           </div>
         </div>
       </div>
+
+      {placeOrderOpen && (
+        <PlaceOrderForm onClose={() => setPlaceOrderOpen(false)} />
+      )}
     </>
   );
 }
