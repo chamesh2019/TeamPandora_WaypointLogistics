@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Header from "../../../components/layout/header";
 import { Button } from "../../../components/design-system";
 import NewClaimForm from "./new-claim-form";
+import type {
+  StoreDisputeDto,
+  DisputeType,
+  DisputeResolutionStatus,
+} from "../../../lib/types/store-api";
 import {
   AlertTriangle,
   BarChart3,
   Calendar,
   Check,
   Clock3,
+  Eye,
   FileText,
   LayoutGrid,
   Package,
   Plus,
-  Eye,
+  RefreshCw,
   Truck,
 } from "lucide-react";
 
@@ -28,64 +34,187 @@ const storeNavItems = [
   { name: "Reports", href: "/store/reports", icon: BarChart3 },
 ];
 
-const summaryCards = [
-  {
-    label: "Open claims",
-    value: "1",
-    note: "Under review",
-    tone: "amber",
-    icon: AlertTriangle,
-    bars: [16, 18, 22, 24, 35, 28, 42],
-  },
-  {
-    label: "Resolved this month",
-    value: "3",
-    note: "Avg 4 days resolution",
-    tone: "green",
-    icon: Check,
-    bars: [18, 21, 19, 32, 36, 41, 38],
-  },
-  {
-    label: "Total claimed",
-    value: "LKR 12,400",
-    note: "This quarter",
-    tone: "purple",
-    icon: FileText,
-    bars: [12, 20, 24, 29, 36, 33, 41],
-  },
-  {
-    label: "Oldest open claim",
-    value: "3 days",
-    note: "CLM-25601-0004",
-    tone: "blue",
-    icon: Clock3,
-    bars: [18, 32, 24, 36, 44, 39, 52],
-  },
-];
+function formatDisputeType(type: DisputeType): string {
+  switch (type) {
+    case "DAMAGED":
+      return "Cargo damage";
+    case "SHORT_DELIVERY":
+      return "Short delivery";
+    case "WRONG_PRODUCT":
+      return "Wrong product";
+    case "TEMPERATURE_BREACH":
+      return "Temperature breach";
+    default:
+      return type;
+  }
+}
 
-const claimHistory = [
-  {
-    id: "CLM-25601-0004",
-    orderRef: "ORD-25610-2744",
-    type: "Short delivery",
-    detail: "Received 18 of 24 cartons ordered",
-    raised: "10 Jun",
-    status: "Under review",
-    statusTone: "amber",
-  },
-  {
-    id: "CLM-25601-0002",
-    orderRef: "ORD-25601-2691",
-    type: "Cargo damage",
-    detail: "4 cartons crushed · Credit issued",
-    raised: "1 Jun",
-    status: "Resolved",
-    statusTone: "green",
-  },
-];
+function getClaimStatusBadge(status: DisputeResolutionStatus) {
+  switch (status) {
+    case "OPEN":
+      return {
+        label: "Open",
+        className: "bg-[#FFF3DF] text-[#C07B00]",
+      };
+    case "UNDER_REVIEW":
+      return {
+        label: "Under review",
+        className: "bg-[#FFF3DF] text-[#C07B00]",
+      };
+    case "CREDITED":
+      return {
+        label: "Resolved",
+        className: "bg-[#EAFAF3] text-[#18895E]",
+      };
+    case "REJECTED":
+      return {
+        label: "Rejected",
+        className: "bg-[#FEF2F2] text-[#DC2626]",
+      };
+    default:
+      return {
+        label: status,
+        className: "bg-[#F3F4F6] text-[#4B5563]",
+      };
+  }
+}
+
+function formatRaisedDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+  } catch {
+    return dateStr;
+  }
+}
+
+async function fetchStoreClaimsData(): Promise<{
+  claims: StoreDisputeDto[];
+  error: string | null;
+}> {
+  try {
+    const res = await fetch("/api/store/claims");
+    const json = await res.json();
+    if (res.ok && json.success) {
+      return { claims: json.data || [], error: null };
+    }
+    return {
+      claims: [],
+      error: json?.error?.message || "Failed to load claims",
+    };
+  } catch (err) {
+    return {
+      claims: [],
+      error: err instanceof Error ? err.message : "Failed to load claims",
+    };
+  }
+}
 
 export default function ClaimsPage() {
   const [modalOpen, setModalOpen] = useState(false);
+  const [claims, setClaims] = useState<StoreDisputeDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mountedTime] = useState(() => Date.now());
+
+  const applyClaimsData = useCallback(
+    (data: { claims: StoreDisputeDto[]; error: string | null }) => {
+      setClaims(data.claims);
+      setError(data.error);
+      setIsLoading(false);
+    },
+    []
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    const data = await fetchStoreClaimsData();
+    applyClaimsData(data);
+  }, [applyClaimsData]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function init() {
+      const data = await fetchStoreClaimsData();
+      if (!ignore) {
+        applyClaimsData(data);
+      }
+    }
+
+    void init();
+
+    return () => {
+      ignore = true;
+    };
+  }, [applyClaimsData]);
+
+  // Derived KPI metrics
+  const openClaims = claims.filter(
+    (c) => c.resolutionStatus === "OPEN" || c.resolutionStatus === "UNDER_REVIEW"
+  );
+  const resolvedClaims = claims.filter(
+    (c) => c.resolutionStatus === "CREDITED"
+  );
+  const totalUnitsAffected = claims.reduce(
+    (acc, c) => acc + (c.unitsAffected || 0),
+    0
+  );
+
+  // Find oldest open claim
+  const oldestOpenClaim =
+    openClaims.length > 0
+      ? openClaims.reduce((oldest, current) => {
+          const oldestTime = new Date(oldest.createdAt).getTime();
+          const currentTime = new Date(current.createdAt).getTime();
+          return currentTime < oldestTime ? current : oldest;
+        })
+      : null;
+
+  const oldestClaimDaysText = oldestOpenClaim
+    ? (() => {
+        const diffMs = mountedTime - new Date(oldestOpenClaim.createdAt).getTime();
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        return days === 0 ? "Today" : `${days} days`;
+      })()
+    : "0 days";
+
+  const summaryCards = [
+    {
+      label: "Open claims",
+      value: String(openClaims.length),
+      note: openClaims.length > 0 ? "Under review" : "No open disputes",
+      tone: "amber" as const,
+      icon: AlertTriangle,
+      bars: [16, 18, 22, 24, 35, 28, 42],
+    },
+    {
+      label: "Resolved this month",
+      value: String(resolvedClaims.length),
+      note: "Credits issued",
+      tone: "green" as const,
+      icon: Check,
+      bars: [18, 21, 19, 32, 36, 41, 38],
+    },
+    {
+      label: "Total claimed units",
+      value: String(totalUnitsAffected),
+      note: "Cartons / items affected",
+      tone: "purple" as const,
+      icon: FileText,
+      bars: [12, 20, 24, 29, 36, 33, 41],
+    },
+    {
+      label: "Oldest open claim",
+      value: oldestClaimDaysText,
+      note: oldestOpenClaim ? oldestOpenClaim.disputeId : "None pending",
+      tone: "blue" as const,
+      icon: Clock3,
+      bars: [18, 32, 24, 36, 44, 39, 52],
+    },
+  ];
 
   return (
     <>
@@ -108,15 +237,29 @@ export default function ClaimsPage() {
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant="primary"
-              className="px-3.5 py-2 text-[11px] font-bold shadow-[0_2px_8px_rgba(245,197,66,0.25)]"
-              onClick={() => setModalOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New claim
-            </Button>
+            <div className="flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="secondary"
+                className="px-3 py-2 text-[12px] font-semibold"
+                onClick={handleRefresh}
+                disabled={isLoading}
+                aria-label="Refresh claims"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`}
+                />
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className="px-3.5 py-2 text-[11px] font-bold shadow-[0_2px_8px_rgba(245,197,66,0.25)]"
+                onClick={() => setModalOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New claim
+              </Button>
+            </div>
           </div>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5 xl:[&>*]:min-w-[240px]">
@@ -155,7 +298,7 @@ export default function ClaimsPage() {
                       {card.label}
                     </span>
                     <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneClasses!.badge}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneClasses.badge}`}
                     >
                       <Icon className="h-4 w-4" />
                     </div>
@@ -172,7 +315,11 @@ export default function ClaimsPage() {
                     {card.bars.map((bar, index) => (
                       <div
                         key={`${card.label}-${index}`}
-                        className={`flex-1 rounded-t-[3px] ${index === card.bars.length - 1 ? toneClasses!.active : toneClasses!.bar}`}
+                        className={`flex-1 rounded-t-[3px] ${
+                          index === card.bars.length - 1
+                            ? toneClasses.active
+                            : toneClasses.bar
+                        }`}
                         style={{ height: `${Math.max(12, bar)}%` }}
                       />
                     ))}
@@ -181,6 +328,19 @@ export default function ClaimsPage() {
               );
             })}
           </section>
+
+          {error && (
+            <div className="mt-4 flex items-center justify-between rounded-[10px] border border-red-200 bg-red-50 p-3.5 text-[12px] text-red-700">
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="font-bold underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 overflow-hidden rounded-[14px] border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(15,16,32,0.06)]">
             <div className="px-4 py-3">
@@ -205,48 +365,80 @@ export default function ClaimsPage() {
                 </thead>
 
                 <tbody>
-                  {claimHistory.map((claim) => (
-                    <tr
-                      key={claim.id}
-                      className="border-t border-[#E7EAF0] text-[12px] text-[#0F1020]"
-                    >
-                      <td className="px-4 py-3 font-medium">{claim.id}</td>
-                      <td className="px-4 py-3 font-medium text-[#51576D]">
-                        {claim.orderRef}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-[#1F2430]">
-                          {claim.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-[#51576D]">
-                        {claim.detail}
-                      </td>
-                      <td className="px-4 py-3 text-[#51576D]">
-                        {claim.raised}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                              claim.statusTone === "amber"
-                                ? "bg-[#FFF3DF] text-[#C07B00]"
-                                : "bg-[#EAFAF3] text-[#18895E]"
-                            }`}
-                          >
-                            {claim.status}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`View ${claim.id}`}
-                            className="flex h-5 w-5 items-center justify-center rounded-full border border-[#DDE2EC] bg-white text-[#8E93A7] transition-colors hover:border-[#BFC9D6] hover:text-[#5E667E]"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="py-12 text-center text-[12px] text-[#7B7B9D]"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin text-[#7B7B9D]" />
+                          <span>Loading claims history...</span>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ) : claims.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="py-12 text-center text-[12px] text-[#7B7B9D]"
+                      >
+                        <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-[#C2C6D6]" />
+                        <p className="font-semibold text-[#0F1020]">
+                          No claims found
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-[#747B93]">
+                          No claims or disputes recorded for this store outlet.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    claims.map((claim) => {
+                      const badge = getClaimStatusBadge(claim.resolutionStatus);
+
+                      return (
+                        <tr
+                          key={claim.disputeId}
+                          className="border-t border-[#E7EAF0] text-[12px] text-[#0F1020] hover:bg-[#F9FAFC] transition-colors"
+                        >
+                          <td className="px-4 py-3 font-medium">
+                            {claim.disputeId}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-[#51576D]">
+                            {claim.orderId}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-[#1F2430]">
+                              {formatDisputeType(claim.disputeType)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-[#51576D]">
+                            {claim.unitsAffected} units affected
+                            {claim.storeNotes ? ` · ${claim.storeNotes}` : ""}
+                          </td>
+                          <td className="px-4 py-3 text-[#51576D]">
+                            {formatRaisedDate(claim.createdAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${badge.className}`}
+                              >
+                                {badge.label}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`View ${claim.disputeId}`}
+                                className="flex h-5 w-5 items-center justify-center rounded-full border border-[#DDE2EC] bg-white text-[#8E93A7] transition-colors hover:border-[#BFC9D6] hover:text-[#5E667E]"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -254,7 +446,12 @@ export default function ClaimsPage() {
         </div>
       </div>
       {modalOpen && (
-        <NewClaimForm onClose={() => setModalOpen(false)} />
+        <NewClaimForm
+          onClose={() => setModalOpen(false)}
+          onSuccess={() => {
+            handleRefresh();
+          }}
+        />
       )}
     </>
   );
