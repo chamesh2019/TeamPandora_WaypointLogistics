@@ -104,9 +104,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const sanitizedItemId =
+    typeof itemId === "string" && itemId.trim().length > 0
+      ? itemId.trim()
+      : undefined;
+
   const claimData: CreateDisputeRequest = {
     orderId: orderId.trim(),
-    itemId: typeof itemId === "string" ? itemId.trim() : undefined,
+    itemId: sanitizedItemId,
     disputeType: disputeType as DisputeType,
     unitsAffected,
     storeNotes: storeNotes.trim(),

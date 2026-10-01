@@ -192,6 +192,17 @@ describe("Store Forms Integration", () => {
       expect(source).toContain("errorMessage");
       expect(source).not.toMatch(/function handleSubmit\(\)\s*\{\s*onClose\(\);\s*\}/);
     });
+
+    it("displays prominent cutoff notice banner and delays modal close when notice is returned", () => {
+      const source = fs.readFileSync(
+        path.resolve(__dirname, "../app/store/orders/place-order-form.tsx"),
+        "utf-8"
+      );
+      expect(source).toContain("cutoffNotice");
+      expect(source).toContain("cutoff-notice-banner");
+      expect(source).toContain("onSuccess(response.data, notice)");
+      expect(source).toContain("setTimeout");
+    });
   });
 
   describe("NewClaimForm Integration", () => {

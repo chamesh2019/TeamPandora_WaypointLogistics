@@ -37,9 +37,10 @@ export class StoreService {
    * Calculates next operating delivery date (defaults to +1 day).
    */
   static calculateNextOperatingDay(dateStr: string): string {
-    const d = new Date(dateStr);
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
   }
 
   /**
@@ -518,11 +519,11 @@ export class StoreService {
         [data.orderId, outletId]
       );
 
-      if (
-        !orderCheck.rows ||
-        orderCheck.rows.length === 0 ||
-        !["DELIVERED", "PARTIALLY_DELIVERED"].includes(orderCheck.rows[0].lifecycle_status)
-      ) {
+      if (!orderCheck.rows || orderCheck.rows.length === 0) {
+        throw new Error("NOT_FOUND");
+      }
+
+      if (!["DELIVERED", "PARTIALLY_DELIVERED"].includes(orderCheck.rows[0].lifecycle_status)) {
         throw new Error("INVALID_ORDER_STATE");
       }
 
@@ -627,9 +628,11 @@ export class StoreService {
         [data.orderId, outletId]
       );
 
+      if (!orderCheck.rows || orderCheck.rows.length === 0) {
+        throw new Error("NOT_FOUND");
+      }
+
       if (
-        !orderCheck.rows ||
-        orderCheck.rows.length === 0 ||
         !["DELIVERED", "PARTIALLY_DELIVERED", "RECEIVED"].includes(
           orderCheck.rows[0].lifecycle_status
         )
@@ -765,7 +768,7 @@ export class StoreService {
         FROM orders o
         LEFT JOIN trip_stops ts ON o.order_id = ts.order_id
         WHERE o.outlet_id = $1 
-          AND o.created_at >= NOW() - ($2 || ' days')::INTERVAL
+          AND o.created_at >= NOW() - ($2 * INTERVAL '1 day')
       `;
 
       const trendsQuery = `
@@ -777,7 +780,7 @@ export class StoreService {
           COALESCE(SUM(o.order_volume_m3), 0) as volume_m3
         FROM orders o
         WHERE o.outlet_id = $1
-          AND o.created_at >= NOW() - ($2 || ' days')::INTERVAL
+          AND o.created_at >= NOW() - ($2 * INTERVAL '1 day')
         GROUP BY EXTRACT(WEEK FROM o.order_date)
         ORDER BY EXTRACT(WEEK FROM o.order_date) ASC
       `;

@@ -21,6 +21,13 @@ describe("Store Service", () => {
       expect(StoreService.checkIsAfterCutoff(exactCutoff)).toBe(true);
       expect(StoreService.checkIsAfterCutoff(justBeforeCutoff)).toBe(false);
     });
+
+    it("calculates next operating day in UTC preventing timezone shifts", () => {
+      expect(StoreService.calculateNextOperatingDay("2026-06-14")).toBe("2026-06-15");
+      expect(StoreService.calculateNextOperatingDay("2026-01-31")).toBe("2026-02-01");
+      expect(StoreService.calculateNextOperatingDay("2026-12-31")).toBe("2027-01-01");
+      expect(StoreService.calculateNextOperatingDay("2024-02-28")).toBe("2024-02-29");
+    });
   });
 
   describe("Order Rules Validation (validateOrderRules)", () => {
@@ -260,7 +267,7 @@ describe("Store Service", () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
-    it("rejects receipt confirmation if order is not delivered or wrong outlet", async () => {
+    it("rejects receipt confirmation if order is not delivered (INVALID_ORDER_STATE)", async () => {
       const mockClient = {
         query: vi.fn().mockImplementation((queryText: string) => {
           if (queryText === "BEGIN" || queryText === "ROLLBACK") {
@@ -284,6 +291,29 @@ describe("Store Service", () => {
           decision: "ACCEPTED_IN_FULL",
         })
       ).rejects.toThrow("INVALID_ORDER_STATE");
+    });
+
+    it("throws NOT_FOUND if order does not exist in confirmStoreReceipt", async () => {
+      const mockClient = {
+        query: vi.fn().mockImplementation((queryText: string) => {
+          if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+            return Promise.resolve({ rows: [], rowCount: 0 });
+          }
+          if (queryText.includes("SELECT lifecycle_status FROM orders")) {
+            return Promise.resolve({ rows: [], rowCount: 0 });
+          }
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        }),
+        release: vi.fn(),
+      };
+      vi.spyOn(pool, "connect").mockResolvedValue(mockClient as any);
+
+      await expect(
+        StoreService.confirmStoreReceipt("OUT001", "usr-1", {
+          orderId: "ORD-NONEXISTENT",
+          decision: "ACCEPTED_IN_FULL",
+        })
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -332,6 +362,59 @@ describe("Store Service", () => {
       expect(claim.resolutionStatus).toBe("OPEN");
       expect(mockClient.query).toHaveBeenCalledWith("COMMIT");
       expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it("throws NOT_FOUND if order does not exist in createStoreClaim", async () => {
+      const mockClient = {
+        query: vi.fn().mockImplementation((queryText: string) => {
+          if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+            return Promise.resolve({ rows: [], rowCount: 0 });
+          }
+          if (queryText.includes("SELECT lifecycle_status FROM orders")) {
+            return Promise.resolve({ rows: [], rowCount: 0 });
+          }
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        }),
+        release: vi.fn(),
+      };
+      vi.spyOn(pool, "connect").mockResolvedValue(mockClient as any);
+
+      await expect(
+        StoreService.createStoreClaim("OUT001", "usr-1", {
+          orderId: "ORD-NONEXISTENT",
+          disputeType: "DAMAGED",
+          unitsAffected: 2,
+          storeNotes: "Damaged box",
+        })
+      ).rejects.toThrow("NOT_FOUND");
+    });
+
+    it("throws INVALID_ORDER_STATE if order is in IN_TRANSIT in createStoreClaim", async () => {
+      const mockClient = {
+        query: vi.fn().mockImplementation((queryText: string) => {
+          if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+            return Promise.resolve({ rows: [], rowCount: 0 });
+          }
+          if (queryText.includes("SELECT lifecycle_status FROM orders")) {
+            return Promise.resolve({
+              rows: [{ lifecycle_status: "IN_TRANSIT" }],
+              rowCount: 1,
+            });
+          }
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        }),
+        release: vi.fn(),
+      };
+      vi.spyOn(pool, "connect").mockResolvedValue(mockClient as any);
+
+      await expect(
+        StoreService.createStoreClaim("OUT001", "usr-1", {
+          orderId: "ORD-1",
+          disputeType: "DAMAGED",
+          unitsAffected: 2,
+          storeNotes: "Damaged box",
+        })
+      ).rejects.toThrow("INVALID_ORDER_STATE");
     });
   });
 
@@ -393,7 +476,7 @@ describe("Store Service", () => {
     });
 
     it("gets store reports metrics", async () => {
-      vi.spyOn(pool, "query")
+      const querySpy = vi.spyOn(pool, "query")
         .mockResolvedValueOnce({
           rows: [
             {
@@ -426,6 +509,9 @@ describe("Store Service", () => {
       const reports = await StoreService.getStoreReports("OUT001", 30);
       expect(reports.fulfillmentRate).toBe(90);
       expect(reports.weeklyTrends.length).toBe(1);
+      const calls = querySpy.mock.calls;
+      expect(calls[0][0]).toContain("($2 * INTERVAL '1 day')");
+      expect(calls[1][0]).toContain("($2 * INTERVAL '1 day')");
     });
 
     it("gets store overview aggregating KPIs, next arrival and recent orders", async () => {

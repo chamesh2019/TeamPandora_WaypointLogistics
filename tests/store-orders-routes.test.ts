@@ -91,6 +91,30 @@ describe("/api/store/orders Route Handlers", () => {
       });
     });
 
+    it("returns 400 when startDate or endDate query param has invalid date format", async () => {
+      vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuthContext);
+
+      const invalidUrls = [
+        "http://localhost:3000/api/store/orders?startDate=invalid-date",
+        "http://localhost:3000/api/store/orders?startDate=2026/10/01",
+        "http://localhost:3000/api/store/orders?startDate=2026-02-31",
+        "http://localhost:3000/api/store/orders?endDate=2026-13-01",
+        "http://localhost:3000/api/store/orders?endDate=bad",
+      ];
+
+      for (const url of invalidUrls) {
+        const req = new Request(url);
+        const res = await getOrders(req);
+        expect(res.status).toBe(400);
+        const json = await res.json();
+        expect(json.success).toBe(false);
+        expect(json.error.code).toBe("VALIDATION_ERROR");
+        expect(json.error.message).toBe(
+          "Invalid date format for startDate/endDate, expected YYYY-MM-DD"
+        );
+      }
+    });
+
     it("returns 500 when StoreService throws an unexpected error", async () => {
       vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuthContext);
       vi.spyOn(StoreService, "getStoreOrders").mockRejectedValue(new Error("Database connection lost"));
@@ -156,6 +180,70 @@ describe("/api/store/orders Route Handlers", () => {
         expect(res.status).toBe(400);
         const json = await res.json();
         expect(json.error.code).toBe("VALIDATION_ERROR");
+      }
+    });
+
+    it("returns 400 when items is not an array", async () => {
+      vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuthContext);
+
+      const req = new Request("http://localhost:3000/api/store/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          deliveryDate: "2026-10-02",
+          tempRequirement: "ambient",
+          orderUnits: 10,
+          orderWeightKg: 100,
+          orderVolumeM3: 2,
+          items: "not-an-array",
+        }),
+      });
+      const res = await createOrder(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("VALIDATION_ERROR");
+      expect(json.error.message).toBe("items must be an array");
+    });
+
+    it("returns 400 when any item in items array is invalid", async () => {
+      vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuthContext);
+
+      const basePayload = {
+        deliveryDate: "2026-10-02",
+        tempRequirement: "ambient",
+        orderUnits: 10,
+        orderWeightKg: 100,
+        orderVolumeM3: 2,
+      };
+
+      const invalidItemArrays = [
+        [null],
+        ["string-item"],
+        [{ skuCode: "", productName: "Valid", quantity: 5 }],
+        [{ skuCode: "   ", productName: "Valid", quantity: 5 }],
+        [{ skuCode: 123, productName: "Valid", quantity: 5 }],
+        [{ skuCode: "SKU-1", productName: "", quantity: 5 }],
+        [{ skuCode: "SKU-1", productName: "   ", quantity: 5 }],
+        [{ skuCode: "SKU-1", productName: 123, quantity: 5 }],
+        [{ skuCode: "SKU-1", productName: "Valid", quantity: 0 }],
+        [{ skuCode: "SKU-1", productName: "Valid", quantity: -1 }],
+        [{ skuCode: "SKU-1", productName: "Valid", quantity: 2.5 }],
+        [{ skuCode: "SKU-1", productName: "Valid", quantity: "five" }],
+        [
+          { skuCode: "SKU-VALID", productName: "Good", quantity: 2 },
+          { skuCode: "", productName: "Bad", quantity: 1 },
+        ],
+      ];
+
+      for (const items of invalidItemArrays) {
+        const req = new Request("http://localhost:3000/api/store/orders", {
+          method: "POST",
+          body: JSON.stringify({ ...basePayload, items }),
+        });
+        const res = await createOrder(req);
+        expect(res.status).toBe(400);
+        const json = await res.json();
+        expect(json.error.code).toBe("VALIDATION_ERROR");
+        expect(json.error.message).toBe("Invalid item in items array");
       }
     });
 

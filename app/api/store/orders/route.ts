@@ -19,6 +19,19 @@ const VALID_LIFECYCLE_STATUSES: OrderLifecycleStatus[] = [
   "FAILED",
 ];
 
+function isValidDateParam(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return false;
+  }
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
 /**
  * GET /api/store/orders
  * Retrieves filtered, paginated order history for the authenticated store manager's outlet.
@@ -35,8 +48,27 @@ export async function GET(request: Request) {
 
     const statusParam = searchParams.get("status");
     const tempParam = searchParams.get("temp");
-    const startDate = searchParams.get("startDate") || undefined;
-    const endDate = searchParams.get("endDate") || undefined;
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
+
+    if (startDateParam !== null && !isValidDateParam(startDateParam)) {
+      return apiError(
+        "VALIDATION_ERROR",
+        "Invalid date format for startDate/endDate, expected YYYY-MM-DD",
+        400
+      );
+    }
+
+    if (endDateParam !== null && !isValidDateParam(endDateParam)) {
+      return apiError(
+        "VALIDATION_ERROR",
+        "Invalid date format for startDate/endDate, expected YYYY-MM-DD",
+        400
+      );
+    }
+
+    const startDate = startDateParam || undefined;
+    const endDate = endDateParam || undefined;
 
     const pageRaw = searchParams.get("page");
     const pageSizeRaw = searchParams.get("pageSize");
@@ -172,8 +204,35 @@ export async function POST(request: Request) {
     return apiError("VALIDATION_ERROR", "notes must be a string", 400);
   }
 
-  if (items !== undefined && !Array.isArray(items)) {
-    return apiError("VALIDATION_ERROR", "items must be an array", 400);
+  if (items !== undefined) {
+    if (!Array.isArray(items)) {
+      return apiError("VALIDATION_ERROR", "items must be an array", 400);
+    }
+    for (const item of items) {
+      if (!item || typeof item !== "object") {
+        return apiError(
+          "VALIDATION_ERROR",
+          "Invalid item in items array",
+          400
+        );
+      }
+      const it = item as Record<string, unknown>;
+      if (
+        typeof it.skuCode !== "string" ||
+        !it.skuCode.trim() ||
+        typeof it.productName !== "string" ||
+        !it.productName.trim() ||
+        typeof it.quantity !== "number" ||
+        !Number.isInteger(it.quantity) ||
+        it.quantity <= 0
+      ) {
+        return apiError(
+          "VALIDATION_ERROR",
+          "Invalid item in items array",
+          400
+        );
+      }
+    }
   }
 
   const orderData: CreateOrderRequest = {

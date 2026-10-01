@@ -304,6 +304,23 @@ describe("Store Execution Routes (Incoming, Receipts, Claims)", () => {
         expect(json.error.code).toBe("INVALID_ORDER_STATE");
       });
 
+      it("returns 404 when StoreService throws NOT_FOUND", async () => {
+        vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuth);
+        vi.spyOn(StoreService, "confirmStoreReceipt").mockRejectedValue(
+          new Error("NOT_FOUND")
+        );
+
+        const req = new Request("http://localhost:3000/api/store/receipts", {
+          method: "POST",
+          body: JSON.stringify({ orderId: "ORD-NONEXISTENT", decision: "ACCEPTED_IN_FULL" }),
+        });
+        const res = await postReceipt(req);
+        expect(res.status).toBe(404);
+        const json = await res.json();
+        expect(json.success).toBe(false);
+        expect(json.error.code).toBe("NOT_FOUND");
+      });
+
       it("returns 500 when StoreService throws unexpected error", async () => {
         vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuth);
         vi.spyOn(StoreService, "confirmStoreReceipt").mockRejectedValue(
@@ -524,6 +541,58 @@ describe("Store Execution Routes (Incoming, Receipts, Claims)", () => {
           storeNotes: "Short by 1 item",
           evidencePhotoUrls: undefined,
         });
+      });
+
+      it("sanitizes empty string or whitespace itemId to undefined", async () => {
+        vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuth);
+        const claimSpy = vi.spyOn(StoreService, "createStoreClaim").mockResolvedValue({
+          disputeId: "DSP-3",
+        } as any);
+
+        for (const emptyVal of ["", "   "]) {
+          const req = new Request("http://localhost:3000/api/store/claims", {
+            method: "POST",
+            body: JSON.stringify({
+              orderId: "ORD-1",
+              itemId: emptyVal,
+              disputeType: "SHORT_DELIVERY",
+              unitsAffected: 1,
+              storeNotes: "Short by 1 item",
+            }),
+          });
+          const res = await postClaim(req);
+          expect(res.status).toBe(201);
+          expect(claimSpy).toHaveBeenCalledWith("OUT001", "u1", {
+            orderId: "ORD-1",
+            itemId: undefined,
+            disputeType: "SHORT_DELIVERY",
+            unitsAffected: 1,
+            storeNotes: "Short by 1 item",
+            evidencePhotoUrls: undefined,
+          });
+        }
+      });
+
+      it("returns 404 when StoreService throws NOT_FOUND", async () => {
+        vi.spyOn(guard, "requireStoreManager").mockResolvedValue(mockAuth);
+        vi.spyOn(StoreService, "createStoreClaim").mockRejectedValue(
+          new Error("NOT_FOUND")
+        );
+
+        const req = new Request("http://localhost:3000/api/store/claims", {
+          method: "POST",
+          body: JSON.stringify({
+            orderId: "ORD-NONEXISTENT",
+            disputeType: "DAMAGED",
+            unitsAffected: 2,
+            storeNotes: "Notes",
+          }),
+        });
+        const res = await postClaim(req);
+        expect(res.status).toBe(404);
+        const json = await res.json();
+        expect(json.success).toBe(false);
+        expect(json.error.code).toBe("NOT_FOUND");
       });
 
       it("returns 400 when StoreService throws INVALID_ORDER_STATE", async () => {

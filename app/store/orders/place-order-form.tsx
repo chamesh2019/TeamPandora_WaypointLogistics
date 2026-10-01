@@ -129,6 +129,14 @@ export default function PlaceOrderForm({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cutoffNotice, setCutoffNotice] = useState<string | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   // Calendar popover state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -210,10 +218,19 @@ export default function PlaceOrderForm({
         notes,
       });
 
+      const notice = response.meta?.notice;
       if (onSuccess) {
-        onSuccess(response.data, response.meta?.notice);
+        onSuccess(response.data, notice);
       }
-      onClose();
+
+      if (notice) {
+        setCutoffNotice(notice);
+        timerRef.current = setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        onClose();
+      }
     } catch (err) {
       setErrorMessage(
         err instanceof Error
@@ -257,6 +274,20 @@ export default function PlaceOrderForm({
             Cutoff: 16:00 today · 2h 14m remaining
           </span>
         </div>
+
+        {/* Cutoff notice banner */}
+        {cutoffNotice && (
+          <div
+            data-testid="cutoff-notice-banner"
+            className="mt-4 flex items-start gap-2.5 rounded-[10px] border border-[#FDE5BD] bg-[#FFF8EC] p-3 text-[#B45309]"
+          >
+            <Clock className="h-4 w-4 shrink-0 text-[#D97706] mt-0.5" />
+            <div className="text-[12px] font-medium leading-[1.5]">
+              <span className="font-bold">Cutoff Notice: </span>
+              {cutoffNotice}
+            </div>
+          </div>
+        )}
 
         {/* Error message */}
         {errorMessage && (
@@ -479,10 +510,14 @@ export default function PlaceOrderForm({
             type="button"
             variant="primary"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !!cutoffNotice}
             className="px-5 py-2 text-xs font-bold"
           >
-            {isSubmitting ? "Placing order..." : "Submit order"}
+            {isSubmitting
+              ? "Placing order..."
+              : cutoffNotice
+              ? "Order placed"
+              : "Submit order"}
           </Button>
         </div>
       </div>
