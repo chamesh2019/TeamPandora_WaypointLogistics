@@ -122,10 +122,8 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [cutoffInfo, setCutoffInfo] = useState<CutoffInfo>(() => getCutoffInfo());
 
-  const fetchData = useCallback(async () => {
+  const loadOrders = useCallback(async () => {
     try {
-      setIsLoading(true);
-      setError(null);
       const [ordersRes, overviewRes] = await Promise.all([
         fetch("/api/store/orders?pageSize=50"),
         fetch("/api/store/overview"),
@@ -149,13 +147,57 @@ export default function OrdersPage() {
     }
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    setIsLoading(true);
+    setError(null);
+    void loadOrders();
+  }, [loadOrders]);
+
   useEffect(() => {
-    fetchData();
+    let ignore = false;
+
+    async function init() {
+      try {
+        const [ordersRes, overviewRes] = await Promise.all([
+          fetch("/api/store/orders?pageSize=50"),
+          fetch("/api/store/overview"),
+        ]);
+
+        const ordersJson = await ordersRes.json();
+        const overviewJson = await overviewRes.json();
+
+        if (ignore) return;
+
+        if (ordersRes.ok && ordersJson.success) {
+          setOrders(ordersJson.data || []);
+        } else {
+          setError(ordersJson?.error?.message || "Failed to load orders");
+        }
+
+        if (overviewRes.ok && overviewJson.success) {
+          setOverview(overviewJson.data);
+        }
+      } catch (err) {
+        if (ignore) return;
+        setError(err instanceof Error ? err.message : "Failed to load orders");
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void init();
+
     const interval = setInterval(() => {
       setCutoffInfo(getCutoffInfo());
     }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+
+    return () => {
+      ignore = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Derived metrics
   const openOrdersCount =
@@ -211,7 +253,7 @@ export default function OrdersPage() {
                 type="button"
                 variant="secondary"
                 className="px-3 py-2 text-[12px] font-semibold"
-                onClick={fetchData}
+                onClick={handleRefresh}
                 disabled={isLoading}
                 aria-label="Refresh orders"
               >
@@ -275,7 +317,7 @@ export default function OrdersPage() {
               <span>{error}</span>
               <button
                 type="button"
-                onClick={fetchData}
+                onClick={handleRefresh}
                 className="font-bold underline hover:no-underline"
               >
                 Retry
@@ -402,7 +444,7 @@ export default function OrdersPage() {
         <PlaceOrderForm
           onClose={() => setPlaceOrderOpen(false)}
           onSuccess={() => {
-            fetchData();
+            handleRefresh();
           }}
         />
       )}
