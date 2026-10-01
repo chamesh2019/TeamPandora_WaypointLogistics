@@ -7,6 +7,7 @@ import { pool } from "../lib/db";
 describe("Store Auth Guard", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(pool, "query").mockResolvedValue({ rows: [] } as any);
   });
 
   it("returns 401 when session is missing", async () => {
