@@ -12,6 +12,7 @@ export function isPublicPath(pathname: string): boolean {
   if (
     pathname === "/" ||
     pathname === "/login" ||
+    pathname.startsWith("/loader") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
