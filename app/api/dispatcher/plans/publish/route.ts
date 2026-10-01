@@ -185,13 +185,20 @@ export async function POST(request: Request) {
 
         await client.query('COMMIT');
       } catch (dbErr) {
-        await client.query('ROLLBACK');
+        try {
+          await client.query('ROLLBACK');
+        } catch {}
         throw dbErr;
       } finally {
         client.release();
       }
-    } catch {
-      // In offline/test environments, gracefully accept the request
+    } catch (err: any) {
+      // Allow graceful offline fallback ONLY if DB connection itself was refused in test environment
+      if (err.code === 'ECONNREFUSED' || err.message?.includes('connect ECONNREFUSED')) {
+        console.warn('Database connection refused, running in test mode');
+      } else {
+        throw err;
+      }
     }
 
     return NextResponse.json({

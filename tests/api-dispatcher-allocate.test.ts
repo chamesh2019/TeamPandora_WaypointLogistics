@@ -64,4 +64,31 @@ describe('POST /api/dispatcher/plans/publish', () => {
     const body = await res.json();
     expect(body.success).toBe(false);
   });
+
+  it('returns 500 when database transaction encounters an error', async () => {
+    const { pool } = await import('../lib/db');
+    const mockClient = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockRejectedValueOnce(new Error('DB Constraint Violation')), // query fails
+      release: vi.fn(),
+    };
+    vi.spyOn(pool, 'connect').mockResolvedValueOnce(mockClient as any);
+
+    const req = new Request('http://localhost:3000/api/dispatcher/plans/publish', {
+      method: 'POST',
+      body: JSON.stringify({
+        plan_id: 'PLAN-FAIL-TEST',
+        plan_date: '2026-10-01',
+        depot_id: 'PELIYAGODA',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await publishRoute(req);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.message).toContain('DB Constraint Violation');
+  });
 });
