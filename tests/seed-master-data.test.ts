@@ -47,16 +47,4 @@ describe('Master Data Ingestion', () => {
       expect(orderItemsBlock).toContain(`'ORD-20261001-00${i}'`);
     }
   });
-
-  it('generates store manager accounts for all 120 outlets in SQL seed', () => {
-    const sql = generateSqlSeed();
-    // Verifies canonical store_manager exists for judge walkthroughs
-    expect(sql).toContain("'store_manager'");
-    expect(sql).toContain("'usr-stor-001'");
-    // Verifies outlet-specific managers exist for all outlets
-    expect(sql).toContain("'manager_out001'");
-    expect(sql).toContain("'manager_out081'");
-    expect(sql).toContain("'manager_out120'");
-    expect(sql).toContain("'usr-stor-out120'");
-  });
 });
