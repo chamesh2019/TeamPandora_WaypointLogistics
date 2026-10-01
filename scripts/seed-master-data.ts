@@ -235,13 +235,38 @@ ON CONFLICT (outlet_id) DO UPDATE SET
   contact_phone = EXCLUDED.contact_phone;
 `);
 
+  const storePasswordHash =
+    '9b24d22625e76d3c39e95a33cc61a3ad:d0c3ca78dda8d9b0faf81339b1c6f56b093d78eddb45a8cea735604157e4ff48438e07a8b8c2b80b9533f849bb2eb629dc377d681c4b61e975b2d564bbe7225f';
+
+  const managerUserRows = outlets
+    .map(
+      o =>
+        `  ('usr-stor-${o.outlet_id.toLowerCase()}', 'manager_${o.outlet_id.toLowerCase()}', 'store123', 'Manager ${o.outlet_id}', 'store_manager', NULL, ${escapeSql(o.outlet_id)}, ${escapeSql(o.contact_phone)})`
+    )
+    .join(',\n');
+
+  const managerBetterUserRows = outlets
+    .map(
+      o =>
+        `  ('usr-stor-${o.outlet_id.toLowerCase()}', 'Manager ${o.outlet_id}', 'manager_${o.outlet_id.toLowerCase()}@waypoint.lk', TRUE, 'manager_${o.outlet_id.toLowerCase()}', 'manager_${o.outlet_id.toLowerCase()}', 'store_manager', NULL, ${escapeSql(o.outlet_id)}, ${escapeSql(o.contact_phone)}, NOW(), NOW())`
+    )
+    .join(',\n');
+
+  const managerAccountRows = outlets
+    .map(
+      o =>
+        `  ('acc-stor-${o.outlet_id.toLowerCase()}', 'usr-stor-${o.outlet_id.toLowerCase()}', 'credential', 'usr-stor-${o.outlet_id.toLowerCase()}', '${storePasswordHash}', NOW(), NOW())`
+    )
+    .join(',\n');
+
   parts.push(`-- 7. SEED USERS & BETTER AUTH
 INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number)
 VALUES
   ('usr-disp-001', 'dispatcher', 'dispatch123', 'Sarath Gunawardena', 'dispatcher', 'PELIYAGODA', NULL, '0714455661'),
   ('usr-load-001', 'loader', 'loader123', 'Sunil Jayasinghe', 'loader', 'PELIYAGODA', NULL, '0714455662'),
   ('usr-driv-001', 'driver', 'driver123', 'Nimal Fernando', 'driver', 'PELIYAGODA', NULL, '0714455663'),
-  ('usr-stor-001', 'store_manager', 'store123', 'Anura Silva', 'store_manager', NULL, 'OUT001', '0771234501')
+  ('usr-stor-001', 'store_manager', 'store123', 'Anura Silva', 'store_manager', NULL, 'OUT001', '0771234501'),
+${managerUserRows}
 ON CONFLICT (user_id) DO UPDATE SET
   username = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
@@ -256,7 +281,8 @@ VALUES
   ('usr-disp-001', 'Sarath Gunawardena', 'dispatcher@waypoint.lk', TRUE, 'dispatcher', 'dispatcher', 'dispatcher', 'PELIYAGODA', NULL, '0714455661', NOW(), NOW()),
   ('usr-load-001', 'Sunil Jayasinghe', 'loader@waypoint.lk', TRUE, 'loader', 'loader', 'loader', 'PELIYAGODA', NULL, '0714455662', NOW(), NOW()),
   ('usr-driv-001', 'Nimal Fernando', 'driver@waypoint.lk', TRUE, 'driver', 'driver', 'driver', 'PELIYAGODA', NULL, '0714455663', NOW(), NOW()),
-  ('usr-stor-001', 'Anura Silva', 'store@waypoint.lk', TRUE, 'store_manager', 'store_manager', 'store_manager', NULL, 'OUT001', '0771234501', NOW(), NOW())
+  ('usr-stor-001', 'Anura Silva', 'store@waypoint.lk', TRUE, 'store_manager', 'store_manager', 'store_manager', NULL, 'OUT001', '0771234501', NOW(), NOW()),
+${managerBetterUserRows}
 ON CONFLICT ("id") DO UPDATE SET
   "name" = EXCLUDED."name",
   "email" = EXCLUDED."email",
@@ -271,7 +297,8 @@ VALUES
   ('acc-disp-001', 'usr-disp-001', 'credential', 'usr-disp-001', 'a03fe187fd7b90370b05169381b17697:29a9187eb28eb9128cd495cd1844e3ecf33aee584dd670ef81702052ae857a61ea9fd1ea0a6eb806a7e1fb7e2e0b0c40abf5b6e7785291517fb0a9f45ed456bc', NOW(), NOW()),
   ('acc-load-001', 'usr-load-001', 'credential', 'usr-load-001', '7fd66d021ce0d92a9e2571159546f824:6622c449a8cf7e2d35d5ed1766d8c1c2fe3b3f17a417a0c282fa63bcfe3564aaaedc29d74665ab29f7604ca8c8fdfede2255c23130864a577cbbe59b8daef527', NOW(), NOW()),
   ('acc-driv-001', 'usr-driv-001', 'credential', 'usr-driv-001', 'c3e9270c2e79d9ce34585d82a43d149f:dc2c7762ad3623d5a9426d2bdb8654d30a7336235ec6cf9743551a15c4626f19cfd59f95abbc62d2e9855ce44d08c41ba148b18b2cd731ccd80b762dd3b65064', NOW(), NOW()),
-  ('acc-stor-001', 'usr-stor-001', 'credential', 'usr-stor-001', '9b24d22625e76d3c39e95a33cc61a3ad:d0c3ca78dda8d9b0faf81339b1c6f56b093d78eddb45a8cea735604157e4ff48438e07a8b8c2b80b9533f849bb2eb629dc377d681c4b61e975b2d564bbe7225f', NOW(), NOW())
+  ('acc-stor-001', 'usr-stor-001', 'credential', 'usr-stor-001', '${storePasswordHash}', NOW(), NOW()),
+${managerAccountRows}
 ON CONFLICT ("id") DO UPDATE SET
   "password" = EXCLUDED."password",
   "updatedAt" = NOW();
@@ -535,6 +562,61 @@ export async function seedMasterData(): Promise<{
         "password" = EXCLUDED."password",
         "updatedAt" = NOW();
     `);
+
+    // Seed 120 outlet-specific store manager accounts
+    const storePasswordHash =
+      '9b24d22625e76d3c39e95a33cc61a3ad:d0c3ca78dda8d9b0faf81339b1c6f56b093d78eddb45a8cea735604157e4ff48438e07a8b8c2b80b9533f849bb2eb629dc377d681c4b61e975b2d564bbe7225f';
+    for (const o of outlets) {
+      const userId = `usr-stor-${o.outlet_id.toLowerCase()}`;
+      const username = `manager_${o.outlet_id.toLowerCase()}`;
+      const fullName = `Manager ${o.outlet_id}`;
+      const email = `${username}@waypoint.lk`;
+      const phone = o.contact_phone || null;
+
+      await client.query(
+        `
+        INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number)
+        VALUES ($1, $2, $3, $4, $5, NULL, $6, $7)
+        ON CONFLICT (user_id) DO UPDATE SET
+          username = EXCLUDED.username,
+          password_hash = EXCLUDED.password_hash,
+          full_name = EXCLUDED.full_name,
+          role = EXCLUDED.role,
+          depot_id = EXCLUDED.depot_id,
+          outlet_id = EXCLUDED.outlet_id,
+          phone_number = EXCLUDED.phone_number;
+        `,
+        [userId, username, 'store123', fullName, 'store_manager', o.outlet_id, phone]
+      );
+
+      await client.query(
+        `
+        INSERT INTO "user" ("id", "name", "email", "emailVerified", "username", "displayUsername", "role", "depotId", "outletId", "phoneNumber", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, TRUE, $4, $5, 'store_manager', NULL, $6, $7, NOW(), NOW())
+        ON CONFLICT ("id") DO UPDATE SET
+          "name" = EXCLUDED."name",
+          "email" = EXCLUDED."email",
+          "username" = EXCLUDED."username",
+          "role" = EXCLUDED."role",
+          "depotId" = EXCLUDED."depotId",
+          "outletId" = EXCLUDED."outletId",
+          "updatedAt" = NOW();
+        `,
+        [userId, fullName, email, username, username, o.outlet_id, phone]
+      );
+
+      const accId = `acc-stor-${o.outlet_id.toLowerCase()}`;
+      await client.query(
+        `
+        INSERT INTO "account" ("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt")
+        VALUES ($1, $2, 'credential', $3, $4, NOW(), NOW())
+        ON CONFLICT ("id") DO UPDATE SET
+          "password" = EXCLUDED."password",
+          "updatedAt" = NOW();
+        `,
+        [accId, userId, userId, storePasswordHash]
+      );
+    }
 
     // 8. Seed Vehicles (60 vehicles)
     const vehicles = readAndParseCsvData('vehicles');
