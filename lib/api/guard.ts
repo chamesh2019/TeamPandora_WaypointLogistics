@@ -143,12 +143,13 @@ export async function requireStoreManager(
     );
   }
 
-  let outletId: string | undefined = user.outletId;
+  let outletId: string | undefined;
 
-  if (!outletId && role === "dispatcher") {
+  if (role === "dispatcher") {
+    let requestedOutlet: string | undefined;
     try {
       const url = new URL(request.url, "http://localhost:3000");
-      outletId =
+      requestedOutlet =
         url.searchParams.get("outletId") ||
         url.searchParams.get("outlet_id") ||
         request.headers.get("x-outlet-id") ||
@@ -156,12 +157,15 @@ export async function requireStoreManager(
         request.headers.get("outletId") ||
         undefined;
     } catch {
-      outletId =
+      requestedOutlet =
         request.headers.get("x-outlet-id") ||
         request.headers.get("outlet-id") ||
         request.headers.get("outletId") ||
         undefined;
     }
+    outletId = requestedOutlet || user.outletId;
+  } else {
+    outletId = user.outletId;
   }
 
   if (!outletId || typeof outletId !== "string" || outletId.trim() === "") {

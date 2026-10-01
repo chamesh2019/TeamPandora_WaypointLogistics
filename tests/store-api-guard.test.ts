@@ -136,6 +136,18 @@ describe("Store Auth Guard", () => {
     }
   });
 
+  it("overrides dispatcher default outletId when query param outletId is provided", async () => {
+    vi.spyOn(auth.api, "getSession").mockResolvedValue({
+      user: { id: "usr-disp-001", role: "dispatcher", username: "dispatcher_user", outletId: "OUT001" },
+      session: { id: "s3" },
+    } as any);
+    const req = new Request("http://localhost:3000/api/store/orders?outletId=OUT050");
+    const result = await requireStoreManager(req);
+    expect(result instanceof Response).toBe(false);
+    expect(result).toHaveProperty("outletId", "OUT050");
+    expect(result).toHaveProperty("role", "dispatcher");
+  });
+
   it("resolves brandId from database when pool.query returns a row", async () => {
     vi.spyOn(auth.api, "getSession").mockResolvedValue({
       user: { id: "usr-stor-003", role: "store_manager", outletId: "CUSTOM_OUT" },
