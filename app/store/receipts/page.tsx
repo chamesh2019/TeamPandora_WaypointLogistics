@@ -10,8 +10,8 @@ import {
   Clock3,
   LayoutGrid,
   Package,
-  ShieldAlert,
   Truck,
+  Clipboard
 } from "lucide-react";
 
 const storeNavItems = [
@@ -30,7 +30,7 @@ const summaryStats = [
     value: "2",
     sub: "Confirm to close",
     tone: "amber",
-    icon: Check,
+    icon: Clipboard,
     bars: [30, 26, 35, 45, 52, 59, 40],
   },
   {
@@ -46,7 +46,7 @@ const summaryStats = [
     value: "1",
     sub: "Shortfall noted",
     tone: "purple",
-    icon: ShieldAlert,
+    icon: AlertTriangle,
     bars: [18, 27, 32, 41, 48, 60, 50],
   },
   {
@@ -124,32 +124,32 @@ export default function ReceiptsPage() {
               return (
                 <div
                   key={item.label}
-                  className="rounded-[14px] border border-black/[0.07] bg-white p-4 shadow-[0_2px_12px_rgba(15,16,32,0.07)]"
+                  className="rounded-[16px] border border-black/[0.07] bg-white p-[26px] shadow-[0_2px_12px_rgba(15,16,32,0.07),0_0_0_1px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_28px_rgba(15,16,32,0.1)] hover:-translate-y-[2px] transition-all duration-200"
                 >
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-medium text-[#7B7B9D]">
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <span className="text-[12px] font-medium text-[#7B7B9D]">
                       {item.label}
                     </span>
                     <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-[9px] ${toneMap.box}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneMap!.box}`}
                     >
                       <Icon className="h-4 w-4" />
                     </div>
                   </div>
 
-                  <div className="text-[18px] font-extrabold tracking-[-0.04em] text-[#0F1020]">
+                  <div className="mb-2 text-[36px] font-extrabold tracking-[-0.04em] text-[#0F1020] leading-none">
                     {item.value}
                   </div>
-                  <div className="mt-1 text-[10px] text-[#7B7B9D]">
+                  <div className="text-[10px] font-semibold text-[#7B7B9D]">
                     {item.sub}
                   </div>
 
-                  <div className="mt-3 flex h-[34px] items-end gap-[3px]">
+                  <div className="mt-4 flex h-[44px] items-end gap-[3px]">
                     {item.bars.map((bar, idx) => (
                       <div
                         key={`${item.label}-${idx}`}
-                        className={`flex-1 rounded-t-[3px] ${idx === item.bars.length - 1 ? toneMap.active : toneMap.bar}`}
-                        style={{ height: `${Math.max(14, bar)}%` }}
+                        className={`flex-1 rounded-t-[3px] ${idx === item.bars.length - 1 ? toneMap!.active : toneMap!.bar}`}
+                        style={{ height: `${Math.max(12, bar)}%` }}
                       />
                     ))}
                   </div>
@@ -195,8 +195,8 @@ export default function ReceiptsPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
-                      variant="ghost"
-                      className="min-h-[28px] px-2.5 py-1 text-[9px] font-semibold text-[#7B7B9D] hover:bg-[#F5F6FB] hover:text-[#0F1020]"
+                      variant="secondary"
+                      className="min-h-[28px] px-2.5 py-1 text-[9px] font-semibold"
                     >
                       Review
                     </Button>
