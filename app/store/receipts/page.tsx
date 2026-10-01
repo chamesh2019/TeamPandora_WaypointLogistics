@@ -1,17 +1,26 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Header from "../../../components/layout/header";
 import { Button } from "../../../components/design-system";
+import ConfirmReceiptModal from "./confirm-receipt-modal";
+import type {
+  PendingReceiptDto,
+  StoreOverviewDto,
+} from "../../../lib/types/store-api";
 import {
   AlertTriangle,
   BarChart3,
   Calendar,
   Check,
+  Clipboard,
   Clock3,
+  FileText,
   LayoutGrid,
   Package,
+  RefreshCw,
   Truck,
-  Clipboard
+  X,
 } from "lucide-react";
 
 const storeNavItems = [
@@ -24,57 +33,153 @@ const storeNavItems = [
   { name: "Reports", href: "/store/reports", icon: BarChart3 },
 ];
 
-const summaryStats = [
-  {
-    label: "Pending sign-off",
-    value: "2",
-    sub: "Confirm to close",
-    tone: "amber",
-    icon: Clipboard,
-    bars: [30, 26, 35, 45, 52, 59, 40],
-  },
-  {
-    label: "Confirmed this month",
-    value: "8",
-    sub: "No discrepancies",
-    tone: "green",
-    icon: Check,
-    bars: [24, 34, 42, 58, 55, 60, 72],
-  },
-  {
-    label: "With discrepancies",
-    value: "1",
-    sub: "Shortfall noted",
-    tone: "purple",
-    icon: AlertTriangle,
-    bars: [18, 27, 32, 41, 48, 60, 50],
-  },
-  {
-    label: "Avg confirmation",
-    value: "4h 12m",
-    sub: "Time after delivery",
-    tone: "blue",
-    icon: Clock3,
-    bars: [28, 30, 45, 52, 60, 48, 64],
-  },
-];
+function formatDelivered(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return `Today ${d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })}`;
+    }
+    return `Delivered ${d.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+    })} · ${d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })}`;
+  } catch {
+    return dateStr;
+  }
+}
 
-const pendingReceipts = [
-  {
-    id: "ORD-250611-1842",
-    date: "Delivered 11 Jun · 09:14",
-    cartons: "24 cartons",
-    driver: "R. Silva",
-  },
-  {
-    id: "ORD-250612-1910",
-    date: "Delivered 12 Jun · 07:48",
-    cartons: "12 cartons",
-    driver: "N. Perera",
-  },
-];
+async function fetchStoreReceiptsData(): Promise<{
+  receipts: PendingReceiptDto[];
+  overview: StoreOverviewDto | null;
+  error: string | null;
+}> {
+  try {
+    const [receiptsRes, overviewRes] = await Promise.all([
+      fetch("/api/store/receipts"),
+      fetch("/api/store/overview"),
+    ]);
+
+    const receiptsJson = await receiptsRes.json();
+    const overviewJson = await overviewRes.json();
+
+    const receipts =
+      receiptsRes.ok && receiptsJson.success ? receiptsJson.data || [] : [];
+    const error =
+      !receiptsRes.ok || !receiptsJson.success
+        ? receiptsJson?.error?.message || "Failed to load receipts"
+        : null;
+    const overview =
+      overviewRes.ok && overviewJson.success ? overviewJson.data : null;
+
+    return { receipts, overview, error };
+  } catch (err) {
+    return {
+      receipts: [],
+      overview: null,
+      error: err instanceof Error ? err.message : "Failed to load receipts",
+    };
+  }
+}
 
 export default function ReceiptsPage() {
+  const [receipts, setReceipts] = useState<PendingReceiptDto[]>([]);
+  const [overview, setOverview] = useState<StoreOverviewDto | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmReceipt, setConfirmReceipt] =
+    useState<PendingReceiptDto | null>(null);
+  const [reviewReceipt, setReviewReceipt] =
+    useState<PendingReceiptDto | null>(null);
+
+  const applyReceiptsData = useCallback(
+    (data: {
+      receipts: PendingReceiptDto[];
+      overview: StoreOverviewDto | null;
+      error: string | null;
+    }) => {
+      setReceipts(data.receipts);
+      setOverview(data.overview);
+      setError(data.error);
+      setIsLoading(false);
+    },
+    []
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    const data = await fetchStoreReceiptsData();
+    applyReceiptsData(data);
+  }, [applyReceiptsData]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function init() {
+      const data = await fetchStoreReceiptsData();
+      if (!ignore) {
+        applyReceiptsData(data);
+      }
+    }
+
+    void init();
+
+    return () => {
+      ignore = true;
+    };
+  }, [applyReceiptsData]);
+
+  const pendingCount = receipts.length;
+  const activeDisputesCount = overview?.kpis.activeDisputesCount ?? 0;
+  const nextEta = overview?.kpis.nextArrival?.eta ?? "07:35";
+
+  const summaryStats = [
+    {
+      label: "Pending sign-off",
+      value: String(pendingCount),
+      sub: pendingCount > 0 ? "Confirm to close" : "All signed off",
+      tone: "amber" as const,
+      icon: Clipboard,
+      bars: [30, 26, 35, 45, 52, 59, 40],
+    },
+    {
+      label: "Pending receipts",
+      value: String(overview?.kpis.pendingReceiptsCount ?? pendingCount),
+      sub: "Awaiting inspection",
+      tone: "green" as const,
+      icon: Check,
+      bars: [24, 34, 42, 58, 55, 60, 72],
+    },
+    {
+      label: "Active disputes",
+      value: String(activeDisputesCount),
+      sub: activeDisputesCount > 0 ? "Discrepancy noted" : "No active issues",
+      tone: "purple" as const,
+      icon: AlertTriangle,
+      bars: [18, 27, 32, 41, 48, 60, 50],
+    },
+    {
+      label: "Next arrival",
+      value: nextEta,
+      sub: overview?.kpis.nextArrival
+        ? `Driver: ${overview.kpis.nextArrival.driverName}`
+        : "Scheduled run",
+      tone: "blue" as const,
+      icon: Clock3,
+      bars: [28, 30, 45, 52, 60, 48, 64],
+    },
+  ];
+
   return (
     <>
       <Header
@@ -86,13 +191,28 @@ export default function ReceiptsPage() {
 
       <div className="min-h-screen bg-[#E9EDF3] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-[1280px]">
-          <div className="mb-5">
-            <h1 className="text-[20px] font-extrabold tracking-[-0.04em] text-[#0F1020] sm:text-[28px]">
-              Receipts
-            </h1>
-            <p className="mt-1 text-[11px] text-[#747B93]">
-              Deliveries awaiting your confirmation
-            </p>
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-[20px] font-extrabold tracking-[-0.04em] text-[#0F1020] sm:text-[28px]">
+                Receipts
+              </h1>
+              <p className="mt-1 text-[11px] text-[#747B93]">
+                Deliveries awaiting your confirmation
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="px-3 py-2 text-[12px] font-semibold"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              aria-label="Refresh receipts"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
           </div>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5 xl:[&>*]:min-w-[240px]">
@@ -131,7 +251,7 @@ export default function ReceiptsPage() {
                       {item.label}
                     </span>
                     <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneMap!.box}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${toneMap.box}`}
                     >
                       <Icon className="h-4 w-4" />
                     </div>
@@ -148,7 +268,11 @@ export default function ReceiptsPage() {
                     {item.bars.map((bar, idx) => (
                       <div
                         key={`${item.label}-${idx}`}
-                        className={`flex-1 rounded-t-[3px] ${idx === item.bars.length - 1 ? toneMap!.active : toneMap!.bar}`}
+                        className={`flex-1 rounded-t-[3px] ${
+                          idx === item.bars.length - 1
+                            ? toneMap.active
+                            : toneMap.bar
+                        }`}
                         style={{ height: `${Math.max(12, bar)}%` }}
                       />
                     ))}
@@ -157,6 +281,19 @@ export default function ReceiptsPage() {
               );
             })}
           </section>
+
+          {error && (
+            <div className="mt-4 flex items-center justify-between rounded-[10px] border border-red-200 bg-red-50 p-3.5 text-[12px] text-red-700">
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="font-bold underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 overflow-hidden rounded-[14px] border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(15,16,32,0.07),0_0_0_1px_rgba(0,0,0,0.04)]">
             <div className="flex items-center justify-between border-b border-[#E7EAF0] px-5 py-3.5">
@@ -170,50 +307,174 @@ export default function ReceiptsPage() {
               </div>
 
               <span className="inline-flex items-center rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[9px] font-bold text-[#EF4444]">
-                {pendingReceipts.length}
+                {receipts.length}
               </span>
             </div>
 
             <div className="divide-y divide-[#E7EAF0]">
-              {pendingReceipts.map((receipt, idx) => (
-                <div
-                  key={receipt.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7B7B9D]">
-                      {receipt.date}
-                    </div>
-                    <div className="mt-1 text-[15px] font-extrabold tracking-[-0.04em] text-[#0F1020]">
-                      {receipt.id}
-                    </div>
-                    <div className="mt-1 text-[10px] text-[#7B7B9D]">
-                      {receipt.cartons} · Driver: {receipt.driver}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="min-h-[28px] px-2.5 py-1 text-[9px] font-semibold"
-                    >
-                      Review
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      className="min-h-[30px] px-3 py-1.5 text-[10px] font-bold"
-                    >
-                      Confirm
-                    </Button>
+              {isLoading ? (
+                <div className="py-12 text-center text-[12px] text-[#7B7B9D]">
+                  <div className="flex items-center justify-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-[#7B7B9D]" />
+                    <span>Loading pending receipts...</span>
                   </div>
                 </div>
-              ))}
+              ) : receipts.length === 0 ? (
+                <div className="py-12 text-center text-[12px] text-[#7B7B9D]">
+                  <Check className="mx-auto mb-2 h-8 w-8 text-[#10B981]" />
+                  <p className="font-semibold text-[#0F1020]">
+                    No pending receipts
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#747B93]">
+                    All delivered orders have been confirmed and signed off.
+                  </p>
+                </div>
+              ) : (
+                receipts.map((receipt) => (
+                  <div
+                    key={receipt.orderId}
+                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#F9FAFC] transition-colors"
+                  >
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7B7B9D]">
+                        {formatDelivered(receipt.deliveredAt || receipt.orderDate)}
+                      </div>
+                      <div className="mt-1 text-[15px] font-extrabold tracking-[-0.04em] text-[#0F1020]">
+                        {receipt.orderId}
+                      </div>
+                      <div className="mt-1 text-[10px] text-[#7B7B9D]">
+                        Driver: {receipt.driverName}
+                        {receipt.recipientName
+                          ? ` · Signed by: ${receipt.recipientName}`
+                          : ""}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-[28px] px-2.5 py-1 text-[9px] font-semibold"
+                        onClick={() => setReviewReceipt(receipt)}
+                      >
+                        Review
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        className="min-h-[30px] px-3 py-1.5 text-[10px] font-bold"
+                        onClick={() => setConfirmReceipt(receipt)}
+                      >
+                        Confirm
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Sign-off confirmation modal */}
+      {confirmReceipt && (
+        <ConfirmReceiptModal
+          receipt={confirmReceipt}
+          onClose={() => setConfirmReceipt(null)}
+          onSuccess={() => {
+            handleRefresh();
+          }}
+        />
+      )}
+
+      {/* Review details modal */}
+      {reviewReceipt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReviewReceipt(null);
+          }}
+        >
+          <div className="relative w-full max-w-[480px] rounded-[22px] bg-white p-7 sm:p-8 shadow-[0_24px_64px_rgba(0,0,0,0.18)]">
+            <button
+              type="button"
+              onClick={() => setReviewReceipt(null)}
+              className="absolute right-6 top-6 text-[#7B7B9D] hover:text-[#0F1020] transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#EEF4FF]">
+              <FileText className="h-5 w-5 text-[#2463EB]" />
+            </div>
+
+            <h2 className="text-[20px] font-extrabold tracking-[-0.03em] text-[#0F1020]">
+              Delivery details
+            </h2>
+            <p className="mt-1 text-[12px] leading-[1.6] text-[#747B93]">
+              Proof of delivery for{" "}
+              <span className="font-bold text-[#0F1020]">
+                {reviewReceipt.orderId}
+              </span>
+            </p>
+
+            <div className="mt-5 space-y-3 rounded-[12px] border border-black/[0.06] bg-[#F9FAFC] p-4 text-[12px]">
+              <div className="flex justify-between">
+                <span className="text-[#7B7B9D]">Delivered at:</span>
+                <span className="font-medium text-[#0F1020]">
+                  {formatDelivered(reviewReceipt.deliveredAt)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#7B7B9D]">Driver name:</span>
+                <span className="font-medium text-[#0F1020]">
+                  {reviewReceipt.driverName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#7B7B9D]">Recipient:</span>
+                <span className="font-medium text-[#0F1020]">
+                  {reviewReceipt.recipientName || "Store staff"}
+                </span>
+              </div>
+              {reviewReceipt.driverNotes && (
+                <div className="pt-2 border-t border-black/[0.06]">
+                  <span className="block text-[#7B7B9D] mb-1">
+                    Driver notes:
+                  </span>
+                  <p className="text-[#0F1020] italic">
+                    &ldquo;{reviewReceipt.driverNotes}&rdquo;
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setReviewReceipt(null)}
+                className="px-4 py-2 text-xs font-semibold"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  const target = reviewReceipt;
+                  setReviewReceipt(null);
+                  setConfirmReceipt(target);
+                }}
+                className="px-4 py-2 text-xs font-bold"
+              >
+                Sign off
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

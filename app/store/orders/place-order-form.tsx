@@ -16,18 +16,133 @@ import {
   FieldLabel,
 } from "../../../components/design-system";
 import { cn } from "../../../lib/utils";
+import { getCutoffInfo, type CutoffInfo } from "../../../lib/utils/cutoff";
+
+export interface PlaceOrderFormData {
+  deliveryDate: string;
+  tempRequirement: string;
+  totalCartons: string | number;
+  estimatedWeight: string | number;
+  estimatedVolume: string | number;
+  notes?: string;
+}
+
+export interface PlaceOrderApiPayload {
+  deliveryDate: string;
+  tempRequirement: "ambient" | "chilled";
+  orderUnits: number;
+  orderWeightKg: number;
+  orderVolumeM3: number;
+  notes?: string;
+}
+
+export function formatOrderPayload(
+  data: PlaceOrderFormData
+): PlaceOrderApiPayload {
+  let deliveryDate = data.deliveryDate.trim();
+  const dateParts = deliveryDate.split("/").map((p) => p.trim());
+  if (dateParts.length === 3 && dateParts[2].length === 4) {
+    const [month, day, year] = dateParts;
+    deliveryDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) {
+    throw new Error(
+      "Valid delivery date in MM/DD/YYYY or YYYY-MM-DD format is required"
+    );
+  }
+
+  const tempRequirement =
+    data.tempRequirement === "chilled" ? "chilled" : "ambient";
+
+  const orderUnits =
+    typeof data.totalCartons === "number"
+      ? data.totalCartons
+      : parseInt(String(data.totalCartons).trim(), 10);
+  if (isNaN(orderUnits) || orderUnits <= 0) {
+    throw new Error("Total cartons must be a positive number");
+  }
+
+  const orderWeightKg =
+    typeof data.estimatedWeight === "number"
+      ? data.estimatedWeight
+      : parseFloat(String(data.estimatedWeight).trim());
+  if (isNaN(orderWeightKg) || orderWeightKg <= 0) {
+    throw new Error("Estimated weight must be a positive number");
+  }
+
+  const orderVolumeM3 =
+    typeof data.estimatedVolume === "number"
+      ? data.estimatedVolume
+      : parseFloat(String(data.estimatedVolume).trim());
+  if (isNaN(orderVolumeM3) || orderVolumeM3 <= 0) {
+    throw new Error("Estimated volume must be a positive number");
+  }
+
+  const trimmedNotes = data.notes?.trim();
+
+  return {
+    deliveryDate,
+    tempRequirement,
+    orderUnits,
+    orderWeightKg,
+    orderVolumeM3,
+    notes: trimmedNotes || undefined,
+  };
+}
+
+export async function submitPlaceOrder(
+  data: PlaceOrderFormData,
+  fetchImpl: typeof fetch = fetch
+) {
+  const payload = formatOrderPayload(data);
+
+  const res = await fetchImpl("/api/store/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json?.error?.message || "Failed to place order");
+  }
+
+  return json;
+}
 
 interface PlaceOrderFormProps {
   onClose: () => void;
+  onSuccess?: (order: unknown, notice?: string) => void;
 }
 
-export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
+export default function PlaceOrderForm({
+  onClose,
+  onSuccess,
+}: PlaceOrderFormProps) {
   const [deliveryDate, setDeliveryDate] = useState("06/14/2025");
   const [tempRequirement, setTempRequirement] = useState("ambient");
   const [totalCartons, setTotalCartons] = useState("");
   const [estimatedWeight, setEstimatedWeight] = useState("");
   const [estimatedVolume, setEstimatedVolume] = useState("");
   const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cutoffNotice, setCutoffNotice] = useState<string | null>(null);
+  const [cutoffInfo, setCutoffInfo] = useState<CutoffInfo>(() => getCutoffInfo());
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCutoffInfo(getCutoffInfo());
+    }, 60000);
+    return () => {
+      clearInterval(interval);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   // Calendar popover state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -95,8 +210,42 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
     setIsCalendarOpen(false);
   }
 
-  function handleSubmit() {
-    onClose();
+  async function handleSubmit() {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await submitPlaceOrder({
+        deliveryDate,
+        tempRequirement,
+        totalCartons,
+        estimatedWeight,
+        estimatedVolume,
+        notes,
+      });
+
+      const notice = response.meta?.notice;
+      if (onSuccess) {
+        onSuccess(response.data, notice);
+      }
+
+      if (notice) {
+        setCutoffNotice(notice);
+        timerRef.current = setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while placing your order"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -104,7 +253,7 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
       {/* Modal card */}
@@ -125,12 +274,46 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
         </p>
 
         {/* Cutoff banner */}
-        <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[#FDE5BD] bg-[#FFF8EC] px-3.5 py-2.5 text-[#B45309]">
-          <Clock className="h-3.5 w-3.5 shrink-0 text-[#D97706]" />
+        <div
+          data-testid="cutoff-status-banner"
+          className={cn(
+            "mt-4 flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5",
+            cutoffInfo.isAfterCutoff
+              ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
+              : "border-[#FDE5BD] bg-[#FFF8EC] text-[#B45309]"
+          )}
+        >
+          <Clock
+            className={cn(
+              "h-3.5 w-3.5 shrink-0",
+              cutoffInfo.isAfterCutoff ? "text-[#EA580C]" : "text-[#D97706]"
+            )}
+          />
           <span className="text-[11px] font-semibold">
-            Cutoff: 16:00 today · 2h 14m remaining
+            {cutoffInfo.bannerText}
           </span>
         </div>
+
+        {/* Cutoff notice banner */}
+        {cutoffNotice && (
+          <div
+            data-testid="cutoff-notice-banner"
+            className="mt-4 flex items-start gap-2.5 rounded-[10px] border border-[#FDE5BD] bg-[#FFF8EC] p-3 text-[#B45309]"
+          >
+            <Clock className="h-4 w-4 shrink-0 text-[#D97706] mt-0.5" />
+            <div className="text-[12px] font-medium leading-[1.5]">
+              <span className="font-bold">Cutoff Notice: </span>
+              {cutoffNotice}
+            </div>
+          </div>
+        )}
+
+        {/* Error message */}
+        {errorMessage && (
+          <div className="mt-4 rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] font-medium text-red-700">
+            {errorMessage}
+          </div>
+        )}
 
         {/* Fields */}
         <div className="mt-5 space-y-4">
@@ -235,7 +418,7 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
                           "h-8 w-8 mx-auto rounded-[8px] text-[12px] font-medium flex items-center justify-center transition-all",
                           isSelected
                             ? "bg-[#F5C542] text-[#0F1928] font-extrabold shadow-[0_2px_8px_rgba(245,197,66,0.38)]"
-                            : "text-[#0F1020] hover:bg-[#F5F6FB]",
+                            : "text-[#0F1020] hover:bg-[#F5F6FB]"
                         )}
                       >
                         {dayNumber}
@@ -337,6 +520,7 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
             type="button"
             variant="secondary"
             onClick={onClose}
+            disabled={isSubmitting}
             className="px-5 py-2 text-xs font-semibold"
           >
             Cancel
@@ -345,9 +529,14 @@ export default function PlaceOrderForm({ onClose }: PlaceOrderFormProps) {
             type="button"
             variant="primary"
             onClick={handleSubmit}
+            disabled={isSubmitting || !!cutoffNotice}
             className="px-5 py-2 text-xs font-bold"
           >
-            Submit order
+            {isSubmitting
+              ? "Placing order..."
+              : cutoffNotice
+              ? "Order placed"
+              : "Submit order"}
           </Button>
         </div>
       </div>
