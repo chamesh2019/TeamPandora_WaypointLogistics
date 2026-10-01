@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readAndParseCsvData } from '../scripts/seed-master-data';
+import { readAndParseCsvData, generateSqlSeed } from '../scripts/seed-master-data';
 
 describe('Master Data Ingestion', () => {
   it('reads all 120 outlets and transforms columns', () => {
@@ -32,5 +32,19 @@ describe('Master Data Ingestion', () => {
   it('reads calendar rows correctly', () => {
     const calendar = readAndParseCsvData('calendar');
     expect(calendar.length).toBeGreaterThan(300);
+  });
+
+  it('generates consistent order headers and matching line items in SQL seed', () => {
+    const sql = generateSqlSeed();
+    expect(sql).toContain("('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400");
+    for (let i = 1; i <= 8; i++) {
+      expect(sql).toContain(`ORD-20261001-00${i}`);
+      expect(sql).toContain(`'ORD-20261001-00${i}'`);
+    }
+    // Verify all orders 1..8 have items in order_items block
+    const orderItemsBlock = sql.slice(sql.indexOf('INSERT INTO order_items'));
+    for (let i = 1; i <= 8; i++) {
+      expect(orderItemsBlock).toContain(`'ORD-20261001-00${i}'`);
+    }
   });
 });

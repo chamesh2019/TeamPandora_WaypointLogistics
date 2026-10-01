@@ -43,6 +43,31 @@ export function parseMallWindow(windowStr?: string): { open: string | null; clos
   return { open: null, close: null };
 }
 
+export function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim().replace(/^["']|["']$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim().replace(/^["']|["']$/g, ''));
+  return values;
+}
+
 export function parseCsv(csvContent: string): Record<string, string>[] {
   const lines = csvContent
     .split(/\r?\n/)
@@ -51,11 +76,11 @@ export function parseCsv(csvContent: string): Record<string, string>[] {
 
   if (lines.length === 0) return [];
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+  const headers = parseCsvLine(lines[0]);
   const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const values = parseCsvLine(lines[i]);
     const row: Record<string, string> = {};
     for (let j = 0; j < headers.length; j++) {
       row[headers[j]] = values[j] ?? '';
@@ -77,6 +102,8 @@ export interface OutletRecord {
   mall_window_close: string | null;
   window_open_time: string;
   window_close_time: string;
+  contact_name: string | null;
+  contact_phone: string | null;
 }
 
 export function parseOutlets(csvContent: string): OutletRecord[] {
@@ -94,6 +121,8 @@ export function parseOutlets(csvContent: string): OutletRecord[] {
       mall_window_close: mallWindow.close,
       window_open_time: formatTime(r.window_open_time) || '05:00:00',
       window_close_time: formatTime(r.window_close_time) || '08:00:00',
+      contact_name: r.contact_name?.trim() || null,
+      contact_phone: r.contact_phone?.trim() || null,
     };
   });
 }

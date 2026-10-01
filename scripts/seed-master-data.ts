@@ -73,6 +73,60 @@ function escapeBool(bool: boolean): string {
   return bool ? 'TRUE' : 'FALSE';
 }
 
+export function getSampleOrdersAndItemsSql(): string {
+  return `INSERT INTO orders (
+  order_id, outlet_id, order_date, created_at, is_after_cutoff,
+  temp_requirement, order_units, order_weight_kg, order_volume_m3,
+  priority_score, deferred_yesterday, consecutive_skips, days_since_last_served, lifecycle_status
+)
+VALUES
+  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400, 8.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-002', 'OUT001', '2026-10-01', '2026-09-30 14:12:00', FALSE, 'ambient', 60, 1100.00, 5.200, 7.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'CONFIRMED'),
+  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
+  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED')
+ON CONFLICT (order_id) DO UPDATE SET
+  outlet_id = EXCLUDED.outlet_id,
+  order_date = EXCLUDED.order_date,
+  order_units = EXCLUDED.order_units,
+  order_weight_kg = EXCLUDED.order_weight_kg,
+  order_volume_m3 = EXCLUDED.order_volume_m3,
+  lifecycle_status = EXCLUDED.lifecycle_status;
+
+INSERT INTO order_items (
+  item_id, order_id, sku_code, product_name, quantity_ordered,
+  quantity_loaded, quantity_delivered, quantity_received, unit_weight_kg, unit_volume_m3, is_chilled
+)
+VALUES
+  ('itm-001', 'ORD-20261001-001', 'SKU-DAIRY-01', 'Fresh Milk 1L Crates (12 pk)', 20, 20, 20, 20, 13.00, 0.070, TRUE),
+  ('itm-002', 'ORD-20261001-001', 'SKU-DAIRY-02', 'Farm Butter 500g Box (24 pk)', 15, 15, 15, 15, 12.50, 0.050, TRUE),
+  ('itm-003', 'ORD-20261001-001', 'SKU-MEAT-01', 'Chicken Breast Cold Pack 5kg', 10, 10, 10, 10, 5.20, 0.025, TRUE),
+  ('itm-004', 'ORD-20261001-002', 'SKU-DRY-01', 'Premium White Rice 10kg Bag', 40, 40, 40, 40, 20.00, 0.080, FALSE),
+  ('itm-005', 'ORD-20261001-002', 'SKU-DRY-02', 'Refined Sugar 5kg Pack (4 pk)', 20, 20, 20, 20, 15.00, 0.100, FALSE),
+  ('itm-006', 'ORD-20261001-003', 'SKU-DAIRY-03', 'Fresh Yogurt Cups (48 pk)', 15, 15, 15, 15, 16.00, 0.100, TRUE),
+  ('itm-007', 'ORD-20261001-003', 'SKU-MEAT-02', 'Pork Sausage Packs 10kg', 10, 10, 10, 10, 18.00, 0.130, TRUE),
+  ('itm-008', 'ORD-20261001-004', 'SKU-PROD-01', 'Fresh Vegetables Mixed Crate', 30, 30, 30, 30, 20.00, 0.10667, TRUE),
+  ('itm-009', 'ORD-20261001-005', 'SKU-BEV-01', 'Bottled Mineral Water 1.5L (12 pk)', 70, 70, 70, 70, 20.00, 0.09286, FALSE),
+  ('itm-010', 'ORD-20261001-006', 'SKU-CAN-01', 'Canned Tomatoes & Pulses (24 pk)', 55, 55, 55, 55, 17.818, 0.08727, FALSE),
+  ('itm-011', 'ORD-20261001-007', 'SKU-APP-01', 'Hanging Garment Packs (Casual)', 70, 70, 70, 70, 7.50, 0.150, FALSE),
+  ('itm-012', 'ORD-20261001-007', 'SKU-APP-02', 'Footwear Boxes Assorted', 50, 50, 50, 50, 8.50, 0.150, FALSE),
+  ('itm-013', 'ORD-20261001-008', 'SKU-TECH-01', 'Refrigerator 320L Double Door', 6, 6, 6, 6, 180.00, 0.850, FALSE),
+  ('itm-014', 'ORD-20261001-008', 'SKU-TECH-02', 'Automatic Washing Machine 8kg', 8, 8, 8, 8, 140.00, 0.425, FALSE)
+ON CONFLICT (item_id) DO UPDATE SET
+  quantity_ordered = EXCLUDED.quantity_ordered,
+  quantity_loaded = EXCLUDED.quantity_loaded,
+  quantity_delivered = EXCLUDED.quantity_delivered,
+  quantity_received = EXCLUDED.quantity_received,
+  unit_weight_kg = EXCLUDED.unit_weight_kg,
+  unit_volume_m3 = EXCLUDED.unit_volume_m3,
+  sku_code = EXCLUDED.sku_code,
+  product_name = EXCLUDED.product_name,
+  is_chilled = EXCLUDED.is_chilled;`;
+}
+
 export function generateSqlSeed(): string {
   const districtTravels = readAndParseCsvData('district_travel');
   const allowances = readAndParseCsvData('service_allowances');
@@ -160,7 +214,7 @@ ON CONFLICT (district_id, depot_id) DO UPDATE SET
   const outletRows = outlets
     .map(
       o =>
-        `  (${escapeSql(o.outlet_id)}, ${escapeSql(o.brand_id)}, ${escapeSql(o.district_id)}, ${escapeSql(o.depot_id)}, ${escapeSql(o.dock_type)}, ${escapeSql(o.parking_constraint)}, ${escapeSql(o.mall_window_open)}, ${escapeSql(o.mall_window_close)}, ${escapeSql(o.window_open_time)}, ${escapeSql(o.window_close_time)}, ${escapeSql(`Manager ${o.outlet_id}`)}, '0770000000')`
+        `  (${escapeSql(o.outlet_id)}, ${escapeSql(o.brand_id)}, ${escapeSql(o.district_id)}, ${escapeSql(o.depot_id)}, ${escapeSql(o.dock_type)}, ${escapeSql(o.parking_constraint)}, ${escapeSql(o.mall_window_open)}, ${escapeSql(o.mall_window_close)}, ${escapeSql(o.window_open_time)}, ${escapeSql(o.window_close_time)}, ${escapeSql(o.contact_name)}, ${escapeSql(o.contact_phone)})`
     )
     .join(',\n');
   parts.push(`-- 6. SEED OUTLETS (120 Outlets)
@@ -176,7 +230,9 @@ ON CONFLICT (outlet_id) DO UPDATE SET
   mall_window_open = EXCLUDED.mall_window_open,
   mall_window_close = EXCLUDED.mall_window_close,
   window_open_time = EXCLUDED.window_open_time,
-  window_close_time = EXCLUDED.window_close_time;
+  window_close_time = EXCLUDED.window_close_time,
+  contact_name = EXCLUDED.contact_name,
+  contact_phone = EXCLUDED.contact_phone;
 `);
 
   parts.push(`-- 7. SEED USERS & BETTER AUTH
@@ -186,8 +242,8 @@ VALUES
   ('usr-load-001', 'loader', 'loader123', 'Sunil Jayasinghe', 'loader', 'PELIYAGODA', NULL, '0714455662'),
   ('usr-driv-001', 'driver', 'driver123', 'Nimal Fernando', 'driver', 'PELIYAGODA', NULL, '0714455663'),
   ('usr-stor-001', 'store_manager', 'store123', 'Anura Silva', 'store_manager', NULL, 'OUT001', '0771234501')
-ON CONFLICT (username) DO UPDATE SET
-  user_id = EXCLUDED.user_id,
+ON CONFLICT (user_id) DO UPDATE SET
+  username = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   full_name = EXCLUDED.full_name,
   role = EXCLUDED.role,
@@ -269,31 +325,7 @@ ON CONFLICT (calendar_date) DO UPDATE SET
 `);
 
   parts.push(`-- 10. SEED SAMPLE ORDERS & ITEMS
-INSERT INTO orders (order_id, outlet_id, order_date, created_at, is_after_cutoff, temp_requirement, order_units, order_weight_kg, order_volume_m3, priority_score, deferred_yesterday, consecutive_skips, days_since_last_served, lifecycle_status)
-VALUES
-  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 850.00, 4.500, 8.50, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-002', 'OUT001', '2026-10-01', '2026-09-30 14:12:00', FALSE, 'ambient', 60, 1100.00, 5.200, 7.50, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'CONFIRMED'),
-  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
-  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED')
-ON CONFLICT (order_id) DO UPDATE SET
-  outlet_id = EXCLUDED.outlet_id,
-  order_date = EXCLUDED.order_date,
-  lifecycle_status = EXCLUDED.lifecycle_status;
-
-INSERT INTO order_items (item_id, order_id, sku_code, product_name, quantity_ordered, quantity_loaded, quantity_delivered, quantity_received, unit_weight_kg, unit_volume_m3, is_chilled)
-VALUES
-  ('itm-001', 'ORD-20261001-001', 'SKU-DAIRY-01', 'Fresh Milk 1L Crates (12 pk)', 20, 20, 20, 20, 13.00, 0.070, TRUE),
-  ('itm-002', 'ORD-20261001-001', 'SKU-DAIRY-02', 'Farm Butter 500g Box (24 pk)', 15, 15, 15, 15, 12.50, 0.050, TRUE),
-  ('itm-003', 'ORD-20261001-001', 'SKU-MEAT-01', 'Chicken Breast Cold Pack 5kg', 10, 10, 10, 10, 5.20, 0.025, TRUE)
-ON CONFLICT (item_id) DO UPDATE SET
-  quantity_ordered = EXCLUDED.quantity_ordered,
-  quantity_loaded = EXCLUDED.quantity_loaded,
-  quantity_delivered = EXCLUDED.quantity_delivered,
-  quantity_received = EXCLUDED.quantity_received;
+${getSampleOrdersAndItemsSql()}
 `);
 
   return parts.join('\n');
@@ -437,7 +469,9 @@ export async function seedMasterData(): Promise<{
           mall_window_open = EXCLUDED.mall_window_open,
           mall_window_close = EXCLUDED.mall_window_close,
           window_open_time = EXCLUDED.window_open_time,
-          window_close_time = EXCLUDED.window_close_time;
+          window_close_time = EXCLUDED.window_close_time,
+          contact_name = EXCLUDED.contact_name,
+          contact_phone = EXCLUDED.contact_phone;
         `,
         [
           o.outlet_id,
@@ -450,8 +484,8 @@ export async function seedMasterData(): Promise<{
           o.mall_window_close,
           o.window_open_time,
           o.window_close_time,
-          `Manager ${o.outlet_id}`,
-          '0770000000',
+          o.contact_name,
+          o.contact_phone,
         ]
       );
     }
@@ -464,8 +498,8 @@ export async function seedMasterData(): Promise<{
         ('usr-load-001', 'loader', 'loader123', 'Sunil Jayasinghe', 'loader', 'PELIYAGODA', NULL, '0714455662'),
         ('usr-driv-001', 'driver', 'driver123', 'Nimal Fernando', 'driver', 'PELIYAGODA', NULL, '0714455663'),
         ('usr-stor-001', 'store_manager', 'store123', 'Anura Silva', 'store_manager', NULL, 'OUT001', '0771234501')
-      ON CONFLICT (username) DO UPDATE SET
-        user_id = EXCLUDED.user_id,
+      ON CONFLICT (user_id) DO UPDATE SET
+        username = EXCLUDED.username,
         password_hash = EXCLUDED.password_hash,
         full_name = EXCLUDED.full_name,
         role = EXCLUDED.role,
@@ -595,40 +629,7 @@ export async function seedMasterData(): Promise<{
     }
 
     // 10. Seed Sample Orders and Items
-    await client.query(`
-      INSERT INTO orders (
-        order_id, outlet_id, order_date, created_at, is_after_cutoff,
-        temp_requirement, order_units, order_weight_kg, order_volume_m3,
-        priority_score, deferred_yesterday, consecutive_skips, days_since_last_served, lifecycle_status
-      )
-      VALUES
-        ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 850.00, 4.500, 8.50, FALSE, 0, 1, 'CONFIRMED'),
-        ('ORD-20261001-002', 'OUT001', '2026-10-01', '2026-09-30 14:12:00', FALSE, 'ambient', 60, 1100.00, 5.200, 7.50, FALSE, 0, 1, 'CONFIRMED'),
-        ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'CONFIRMED'),
-        ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'CONFIRMED'),
-        ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
-        ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
-        ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
-        ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED')
-      ON CONFLICT (order_id) DO UPDATE SET
-        outlet_id = EXCLUDED.outlet_id,
-        order_date = EXCLUDED.order_date,
-        lifecycle_status = EXCLUDED.lifecycle_status;
-
-      INSERT INTO order_items (
-        item_id, order_id, sku_code, product_name, quantity_ordered,
-        quantity_loaded, quantity_delivered, quantity_received, unit_weight_kg, unit_volume_m3, is_chilled
-      )
-      VALUES
-        ('itm-001', 'ORD-20261001-001', 'SKU-DAIRY-01', 'Fresh Milk 1L Crates (12 pk)', 20, 20, 20, 20, 13.00, 0.070, TRUE),
-        ('itm-002', 'ORD-20261001-001', 'SKU-DAIRY-02', 'Farm Butter 500g Box (24 pk)', 15, 15, 15, 15, 12.50, 0.050, TRUE),
-        ('itm-003', 'ORD-20261001-001', 'SKU-MEAT-01', 'Chicken Breast Cold Pack 5kg', 10, 10, 10, 10, 5.20, 0.025, TRUE)
-      ON CONFLICT (item_id) DO UPDATE SET
-        quantity_ordered = EXCLUDED.quantity_ordered,
-        quantity_loaded = EXCLUDED.quantity_loaded,
-        quantity_delivered = EXCLUDED.quantity_delivered,
-        quantity_received = EXCLUDED.quantity_received;
-    `);
+    await client.query(getSampleOrdersAndItemsSql());
 
     await client.query('COMMIT');
 

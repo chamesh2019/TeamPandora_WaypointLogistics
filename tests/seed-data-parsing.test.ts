@@ -38,6 +38,14 @@ describe('Seed Data Mapping Utils', () => {
     ]);
   });
 
+  it('parses raw CSV text with quoted fields containing commas', () => {
+    const csv = 'name,address,city\n"Acme, Inc.","123 Main St, Suite 4",Colombo';
+    const rows = parseCsv(csv);
+    expect(rows).toEqual([
+      { name: 'Acme, Inc.', address: '123 Main St, Suite 4', city: 'Colombo' },
+    ]);
+  });
+
   it('parses outlets CSV records into database row formats', () => {
     const csv = 'outlet_id,brand,district,depot,dock_type,parking_constraint,mall_window,window_open_time,window_close_time\nOUT001,Fresh,Colombo,Peliyagoda,street,van_only,,05:00,07:30\nOUT040,Style,Gampaha,Peliyagoda,mall_bay,mall_dock,09:00-11:00,09:00,11:00';
     const outlets = parseOutlets(csv);
@@ -53,6 +61,8 @@ describe('Seed Data Mapping Utils', () => {
       mall_window_close: null,
       window_open_time: '05:00:00',
       window_close_time: '07:30:00',
+      contact_name: null,
+      contact_phone: null,
     });
     expect(outlets[1].mall_window_open).toBe('09:00:00');
     expect(outlets[1].mall_window_close).toBe('11:00:00');
