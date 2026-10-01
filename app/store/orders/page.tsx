@@ -114,6 +114,39 @@ function formatPlaced(dateStr: string) {
   }
 }
 
+async function fetchStoreOrdersData(): Promise<{
+  orders: StoreOrderSummaryDto[];
+  overview: StoreOverviewDto | null;
+  error: string | null;
+}> {
+  try {
+    const [ordersRes, overviewRes] = await Promise.all([
+      fetch("/api/store/orders?pageSize=50"),
+      fetch("/api/store/overview"),
+    ]);
+
+    const ordersJson = await ordersRes.json();
+    const overviewJson = await overviewRes.json();
+
+    const orders =
+      ordersRes.ok && ordersJson.success ? ordersJson.data || [] : [];
+    const error =
+      !ordersRes.ok || !ordersJson.success
+        ? ordersJson?.error?.message || "Failed to load orders"
+        : null;
+    const overview =
+      overviewRes.ok && overviewJson.success ? overviewJson.data : null;
+
+    return { orders, overview, error };
+  } catch (err) {
+    return {
+      orders: [],
+      overview: null,
+      error: err instanceof Error ? err.message : "Failed to load orders",
+    };
+  }
+}
+
 export default function OrdersPage() {
   const [placeOrderOpen, setPlaceOrderOpen] = useState(false);
   const [orders, setOrders] = useState<StoreOrderSummaryDto[]>([]);
@@ -122,68 +155,34 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [cutoffInfo, setCutoffInfo] = useState<CutoffInfo>(() => getCutoffInfo());
 
-  const loadOrders = useCallback(async () => {
-    try {
-      const [ordersRes, overviewRes] = await Promise.all([
-        fetch("/api/store/orders?pageSize=50"),
-        fetch("/api/store/overview"),
-      ]);
-
-      const ordersJson = await ordersRes.json();
-      if (ordersRes.ok && ordersJson.success) {
-        setOrders(ordersJson.data || []);
-      } else {
-        setError(ordersJson?.error?.message || "Failed to load orders");
-      }
-
-      const overviewJson = await overviewRes.json();
-      if (overviewRes.ok && overviewJson.success) {
-        setOverview(overviewJson.data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load orders");
-    } finally {
+  const applyStoreData = useCallback(
+    (data: {
+      orders: StoreOrderSummaryDto[];
+      overview: StoreOverviewDto | null;
+      error: string | null;
+    }) => {
+      setOrders(data.orders);
+      setOverview(data.overview);
+      setError(data.error);
       setIsLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    void loadOrders();
-  }, [loadOrders]);
+    const data = await fetchStoreOrdersData();
+    applyStoreData(data);
+  }, [applyStoreData]);
 
   useEffect(() => {
     let ignore = false;
 
     async function init() {
-      try {
-        const [ordersRes, overviewRes] = await Promise.all([
-          fetch("/api/store/orders?pageSize=50"),
-          fetch("/api/store/overview"),
-        ]);
-
-        const ordersJson = await ordersRes.json();
-        const overviewJson = await overviewRes.json();
-
-        if (ignore) return;
-
-        if (ordersRes.ok && ordersJson.success) {
-          setOrders(ordersJson.data || []);
-        } else {
-          setError(ordersJson?.error?.message || "Failed to load orders");
-        }
-
-        if (overviewRes.ok && overviewJson.success) {
-          setOverview(overviewJson.data);
-        }
-      } catch (err) {
-        if (ignore) return;
-        setError(err instanceof Error ? err.message : "Failed to load orders");
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
+      const data = await fetchStoreOrdersData();
+      if (!ignore) {
+        applyStoreData(data);
       }
     }
 
@@ -197,7 +196,7 @@ export default function OrdersPage() {
       ignore = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [applyStoreData]);
 
   // Derived metrics
   const openOrdersCount =

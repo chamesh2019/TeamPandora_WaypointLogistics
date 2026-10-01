@@ -279,11 +279,16 @@ export default function PlaceOrderForm({
           className={cn(
             "mt-4 flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5",
             cutoffInfo.isAfterCutoff
-              ? "border-[#FDE5BD] bg-[#FFF8EC] text-[#B45309]"
+              ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
               : "border-[#FDE5BD] bg-[#FFF8EC] text-[#B45309]"
           )}
         >
-          <Clock className="h-3.5 w-3.5 shrink-0 text-[#D97706]" />
+          <Clock
+            className={cn(
+              "h-3.5 w-3.5 shrink-0",
+              cutoffInfo.isAfterCutoff ? "text-[#EA580C]" : "text-[#D97706]"
+            )}
+          />
           <span className="text-[11px] font-semibold">
             {cutoffInfo.bannerText}
           </span>

@@ -23,12 +23,14 @@ export function getCutoffInfo(now: Date = new Date()): CutoffInfo {
     hour: "numeric",
     minute: "numeric",
     hour12: false,
+    hourCycle: "h23",
   }).formatToParts(now);
 
   const hourPart = parts.find((p) => p.type === "hour");
   const minutePart = parts.find((p) => p.type === "minute");
 
-  const currentHour = hourPart ? parseInt(hourPart.value, 10) : 0;
+  const rawHour = hourPart ? parseInt(hourPart.value, 10) : 0;
+  const currentHour = rawHour === 24 ? 0 : rawHour % 24;
   const currentMinute = minutePart ? parseInt(minutePart.value, 10) : 0;
 
   const currentTotalMinutes = currentHour * 60 + currentMinute;
