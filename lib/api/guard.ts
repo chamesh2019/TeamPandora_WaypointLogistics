@@ -3,6 +3,7 @@ import { auth } from "../auth";
 import { pool } from "../db";
 import { apiError } from "./response";
 import type { StoreAuthContext } from "../types/store-api";
+import type { LoaderAuthContext } from "../types/loader-api";
 
 interface GuardUser {
   id?: string;
@@ -196,5 +197,81 @@ export async function requireStoreManager(
     role,
     outletId,
     brandId,
+  };
+}
+
+/**
+ * Validates session, role permissions, and depot scope for Loader API routes.
+ *
+ * 1. Checks Better Auth session from request headers.
+ * 2. Ensures user has 'loader' or 'dispatcher' role.
+ * 3. Scopes request to depotId (defaults to 'PELIYAGODA', with header/query override for dispatchers).
+ *
+ * Returns LoaderAuthContext if valid, or a NextResponse error (401 / 403) on failure.
+ */
+export async function requireLoader(
+  request: Request
+): Promise<LoaderAuthContext | NextResponse> {
+  if (!request) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  let sessionRes: GuardSessionResult | null = null;
+  try {
+    sessionRes = (await auth.api.getSession({
+      headers: request.headers,
+    })) as GuardSessionResult | null;
+  } catch {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  if (!sessionRes || !sessionRes.user || !sessionRes.session) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Valid session required", 401);
+  }
+
+  const user = sessionRes.user as GuardUser & { depotId?: string; depot_id?: string };
+  const role = user.role;
+
+  if (role !== "loader" && role !== "dispatcher") {
+    return apiError(
+      "FORBIDDEN_ROLE",
+      "Forbidden: Access requires loader or dispatcher role",
+      403
+    );
+  }
+
+  let depotId: string | undefined;
+
+  if (role === "dispatcher") {
+    let requestedDepot: string | undefined;
+    try {
+      const url = new URL(request.url, "http://localhost:3000");
+      requestedDepot =
+        url.searchParams.get("depotId") ||
+        url.searchParams.get("depot_id") ||
+        request.headers.get("x-depot-id") ||
+        request.headers.get("depot-id") ||
+        request.headers.get("depotId") ||
+        undefined;
+    } catch {
+      requestedDepot =
+        request.headers.get("x-depot-id") ||
+        request.headers.get("depot-id") ||
+        request.headers.get("depotId") ||
+        undefined;
+    }
+    depotId = requestedDepot || user.depotId || user.depot_id || "PELIYAGODA";
+  } else {
+    depotId = user.depotId || user.depot_id || "PELIYAGODA";
+  }
+
+  const userId = user.id || user.userId || "";
+  const username = user.username || user.name || user.email || userId;
+
+  return {
+    userId,
+    username,
+    role: role || "loader",
+    depotId: depotId.trim().toUpperCase(),
   };
 }
