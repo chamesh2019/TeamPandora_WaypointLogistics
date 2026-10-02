@@ -138,7 +138,10 @@ function LoginForm() {
       const isSafeRedirect =
         redirectParam &&
         redirectParam.startsWith("/") &&
-        !redirectParam.startsWith("//");
+        !redirectParam.startsWith("//") &&
+        !redirectParam.startsWith("/.well-known") &&
+        !redirectParam.startsWith("/api") &&
+        !redirectParam.startsWith("/login");
 
       if (isSafeRedirect) {
         router.push(redirectParam);

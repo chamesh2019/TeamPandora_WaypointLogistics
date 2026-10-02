@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookie } from "better-auth/cookies";
 import { auth } from "@/lib/auth";
 
 export const ROLE_PERMITTED_ROUTES: Record<string, string[]> = {
@@ -13,9 +12,13 @@ export function isPublicPath(pathname: string): boolean {
   if (
     pathname === "/" ||
     pathname === "/login" ||
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname.startsWith("/.well-known") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    /\.[a-zA-Z0-9]+$/.test(pathname)
   ) {
     return true;
   }
@@ -56,11 +59,6 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  const sessionCookie = getSessionCookie(req);
-
-  // If no session token found in cookies, check Authorization header (e.g., driver bearer token)
-  const authHeader = req.headers.get("authorization");
-  const hasBearerToken = authHeader && authHeader.startsWith("Bearer ");
 
   let sessionRes: ProxySessionResult | null = null;
   try {
@@ -103,5 +101,7 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api/auth|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|\\.well-known|.*\\.[\\w]+$).*)",
+  ],
 };

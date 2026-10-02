@@ -45,6 +45,11 @@ describe("Proxy Route Protection", () => {
     expect(isPublicPath("/api/auth/sign-in/username")).toBe(true);
     expect(isPublicPath("/api/auth/get-session")).toBe(true);
     expect(isPublicPath("/_next/static/chunk.js")).toBe(true);
+    expect(isPublicPath("/.well-known/appspecific/com.chrome.devtools.json")).toBe(true);
+    expect(isPublicPath("/robots.txt")).toBe(true);
+    expect(isPublicPath("/sitemap.xml")).toBe(true);
+    expect(isPublicPath("/manifest.json")).toBe(true);
+    expect(isPublicPath("/next.svg")).toBe(true);
   });
 
   it("identifies protected operational routes", () => {
@@ -146,5 +151,27 @@ describe("Proxy Route Protection", () => {
     });
     const response = await proxy(req);
     expect(response.status).toBe(200);
+  });
+  it("does not sign out authenticated users or intercept Chrome DevTools and static assets", async () => {
+    const devtoolsReq = new NextRequest(
+      "http://localhost:3000/.well-known/appspecific/com.chrome.devtools.json",
+      {
+        headers: {
+          cookie: "better-auth.session_token=valid-token",
+        },
+      }
+    );
+    const devtoolsRes = await proxy(devtoolsReq);
+    expect(devtoolsRes.status).toBe(200);
+    expect(auth.api.signOut).not.toHaveBeenCalled();
+
+    const svgReq = new NextRequest("http://localhost:3000/next.svg", {
+      headers: {
+        cookie: "better-auth.session_token=valid-token",
+      },
+    });
+    const svgRes = await proxy(svgReq);
+    expect(svgRes.status).toBe(200);
+    expect(auth.api.signOut).not.toHaveBeenCalled();
   });
 });
