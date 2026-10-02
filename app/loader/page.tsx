@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Header from "../../components/layout/header";
 import { Button, Panel, StatCard } from "../../components/design-system";
 import { useSession } from "../../lib/auth-client";
@@ -64,6 +65,24 @@ export default function LoaderPage() {
       : currentHour < 18
         ? "Good afternoon"
         : "Good evening";
+
+  const totalStops = 6;
+  const [checkedStops, setCheckedStops] = useState<Set<number>>(new Set());
+
+  const toggleStop = (stop: number) => {
+    setCheckedStops((prev) => {
+      const next = new Set(prev);
+      if (next.has(stop)) {
+        next.delete(stop);
+      } else {
+        next.add(stop);
+      }
+      return next;
+    });
+  };
+
+  const completedCount = checkedStops.size;
+  const progressPercent = (completedCount / totalStops) * 100;
 
   return (
     <>
@@ -157,7 +176,19 @@ export default function LoaderPage() {
                     key={item.stop}
                     className="flex items-center gap-3 border-b border-[#E7EAF0] py-3.5 last:border-b-0"
                   >
-                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#D1D5DB]" />
+                    <button
+                      type="button"
+                      onClick={() => toggleStop(item.stop)}
+                      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                        checkedStops.has(item.stop)
+                          ? "border-[#22C55E] bg-[#22C55E]"
+                          : "border-[#D1D5DB] hover:border-[#9CA3AF]"
+                      }`}
+                    >
+                      {checkedStops.has(item.stop) && (
+                        <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                      )}
+                    </button>
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-bold text-[#0F1020]">
                         Stop {item.stop} · {item.name}
@@ -177,10 +208,13 @@ export default function LoaderPage() {
               <div className="border-t border-[#E7EAF0] px-5 py-3.5">
                 <div className="flex items-center justify-between text-[11px] mb-2">
                   <span className="font-semibold text-[#4B8EF5]">Loading progress</span>
-                  <span className="font-bold text-[#0F1020]">0 / 6 stops</span>
+                  <span className="font-bold text-[#0F1020]">{completedCount} / {totalStops} stops</span>
                 </div>
                 <div className="h-1 w-full rounded-full bg-[#E7EAF0] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#F5C542]" style={{ width: "0%" }} />
+                  <div
+                    className="h-full rounded-full bg-[#F5C542] transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
                 </div>
               </div>
             </Panel>
