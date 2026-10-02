@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Clipboard, Box, CheckCircle, AlertTriangle, Check } from "lucide-react";
 import { Button, StatCard, StatusBadge } from "../design-system";
+import type { LoaderManifestDto } from "../../lib/types/loader-api";
 
 interface ManifestsProps {
   notify?: (msg: string) => void;
 }
 
-const stops = [
+const defaultStops = [
   { stop: "Stop 6", store: "Nugegoda Fresh", cartons: "18 cartons · 324 kg", loc: "Chilled · front" },
   { stop: "Stop 5", store: "Dehiwala Fresh", cartons: "12 cartons · 216 kg", loc: "Chilled · bay B-14" },
   { stop: "Stop 4", store: "Wellawatte Fresh", cartons: "24 cartons · 448 kg", loc: "Ambient · bay A-08" },
@@ -18,8 +19,38 @@ const stops = [
 ];
 
 export function Manifests({ notify }: ManifestsProps) {
-  const [checked, setChecked] = useState<boolean[]>(Array(stops.length).fill(false));
+  const [manifest, setManifest] = useState<LoaderManifestDto | null>(null);
+  const [stopsList, setStopsList] = useState(defaultStops);
+  const [checked, setChecked] = useState<boolean[]>(Array(defaultStops.length).fill(false));
   const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/loader/manifests/TRP-250613-11")
+      .then((res) => res.json())
+      .then((body) => {
+        if (isMounted && body && body.data) {
+          const m: LoaderManifestDto = body.data;
+          setManifest(m);
+          if (m.stops && m.stops.length > 0) {
+            const mapped = m.stops.map((s) => ({
+              stop: `Stop ${s.stopSequence}`,
+              store: s.outletName,
+              cartons: `${s.cartonsCount} cartons · ${s.weightKg} kg`,
+              loc: s.locationHint || (s.tempRequirement === "CHILLED" ? "Chilled · front" : "Ambient"),
+            }));
+            setStopsList(mapped);
+            setChecked(m.stops.map((s) => s.isVerified));
+          }
+        }
+      })
+      .catch(() => {
+        // graceful offline fallback
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const completedCount = checked.filter(Boolean).length;
 
@@ -27,15 +58,23 @@ export function Manifests({ notify }: ManifestsProps) {
     const next = [...checked];
     next[idx] = !next[idx];
     setChecked(next);
-    if (next[idx]) notify?.(`${stops[idx].store} loaded and verified.`);
+    if (next[idx]) notify?.(`${stopsList[idx].store} loaded and verified.`);
   };
 
-  const handleSignOff = () => {
-    if (completedCount < stops.length) {
+  const handleSignOff = async () => {
+    if (completedCount < stopsList.length) {
       notify?.("Please verify all stops before signing off.");
       return;
     }
     setSyncing(true);
+
+    try {
+      const tripId = manifest?.tripId || "TRP-250613-11";
+      await fetch(`/api/loader/manifests/${tripId}/verify`, { method: "POST" });
+    } catch {
+      // ignore network errors in mock mode
+    }
+
     notify?.("Manifest signed off. Synced to control tower.");
     setTimeout(() => setSyncing(false), 2200);
   };
@@ -103,12 +142,12 @@ export function Manifests({ notify }: ManifestsProps) {
             </div>
             <span className={`sync-badge${syncing ? " syncing" : ""}`}>
               <span />
-              {syncing ? "Synchronizing…" : `${completedCount}/${stops.length} verified`}
+              {syncing ? "Synchronizing…" : `${completedCount}/${stopsList.length} verified`}
             </span>
           </div>
 
           <div className="manifest-list">
-            {stops.map((item, idx) => (
+            {stopsList.map((item, idx) => (
               <div
                 key={idx}
                 className={`manifest-row${checked[idx] ? " done" : ""}`}
@@ -131,10 +170,10 @@ export function Manifests({ notify }: ManifestsProps) {
             <div className="load-progress">
               <div>
                 <span>Load progress</span>
-                <strong>{completedCount}/{stops.length} stops</strong>
+                <strong>{completedCount}/{stopsList.length} stops</strong>
               </div>
               <div className="progress">
-                <span style={{ width: `${(completedCount / stops.length) * 100}%` }} />
+                <span style={{ width: `${(completedCount / stopsList.length) * 100}%` }} />
               </div>
             </div>
             <Button

@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Truck, Box, Clock, CheckCircle } from "lucide-react";
 import { Button, StatCard, StatusBadge } from "../design-system";
+import type { LoaderTripSummary } from "../../lib/types/loader-api";
 
 interface ActiveTripsProps {
   notify?: (msg: string) => void;
 }
 
-const trips = [
+const defaultTrips = [
   {
     id: "TRP-250613-01",
     vehicle: "WP NC-4872",
@@ -51,7 +52,39 @@ const trips = [
 ];
 
 export function ActiveTrips({ notify }: ActiveTripsProps) {
-  const [selected, setSelected] = useState(trips[0]);
+  const [trips, setTrips] = useState(defaultTrips);
+  const [selected, setSelected] = useState(defaultTrips[0]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/loader/trips")
+      .then((res) => res.json())
+      .then((body) => {
+        if (isMounted && body && body.data && body.data.length > 0) {
+          const mapped = body.data.map((t: LoaderTripSummary) => ({
+            id: t.tripId,
+            vehicle: t.vehicleId,
+            type: t.vehicleType,
+            route: t.route,
+            driver: t.driver,
+            stops: t.stops,
+            cartons: t.cartons,
+            departure: t.departure,
+            status: t.status,
+            progress: t.progress,
+            bay: t.bay,
+          }));
+          setTrips(mapped);
+          setSelected(mapped[0]);
+        }
+      })
+      .catch(() => {
+        // graceful offline fallback
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <>

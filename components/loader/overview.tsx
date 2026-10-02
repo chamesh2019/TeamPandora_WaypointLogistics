@@ -1,6 +1,9 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { Truck, Box, Clock, AlertTriangle } from "lucide-react";
 import { Button, StatCard, StatusBadge } from "../design-system";
+import type { LoaderOverviewDto } from "../../lib/types/loader-api";
 
 interface LoaderOverviewProps {
   name: string;
@@ -10,12 +13,62 @@ interface LoaderOverviewProps {
 export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
   const firstName = name.split(" ")[0];
 
+  const [data, setData] = useState<LoaderOverviewDto | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/loader/overview")
+      .then((res) => res.json())
+      .then((body) => {
+        if (isMounted && body && body.data) {
+          setData(body.data);
+        }
+      })
+      .catch(() => {
+        // graceful offline fallback
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
     if (hour < 17) return "Good afternoon";
     return "Good evening";
   };
+
+  const activeBays = data ? data.activeBaysCount : 4;
+  const loadingBays = data ? data.loadingBaysCount : 2;
+  const cartonsStaged = data ? data.cartonsStaged : 284;
+  const cartonsVerifiedPct = data ? data.cartonsVerifiedPct : 86;
+  const departureEta = data ? `${data.departureEtaMin} min` : "38 min";
+  const shortfallRate = data ? `${data.shortfallRatePct}%` : "1.2%";
+
+  const assignments = data && data.activeAssignments.length > 0 ? data.activeAssignments : [
+    {
+      bay: "A-01",
+      vehicle: "WP NC-4872",
+      dest: "Colombo South Route",
+      status: "Loading",
+      progress: 68,
+    },
+    {
+      bay: "A-04",
+      vehicle: "WP CB-1922",
+      dest: "Kandy Express",
+      status: "Staging",
+      progress: 12,
+    },
+    {
+      bay: "B-02",
+      vehicle: "WP LN-8831",
+      dest: "Negombo North",
+      status: "Complete",
+      progress: 100,
+    },
+  ];
 
   return (
     <>
@@ -37,23 +90,23 @@ export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
       <section className="stats-grid">
         <StatCard
           label="Active bays"
-          value={4}
+          value={activeBays}
           tone="blue"
           icon={<Truck className="icon" />}
-          note="2 loading now"
+          note={`${loadingBays} loading now`}
           bars={[]}
         />
         <StatCard
           label="Cartons staged"
-          value={284}
+          value={cartonsStaged}
           tone="green"
           icon={<Box className="icon" />}
-          note="86% verified"
+          note={`${cartonsVerifiedPct}% verified`}
           bars={[]}
         />
         <StatCard
           label="Time to departure"
-          value="38 min"
+          value={departureEta}
           tone="purple"
           icon={<Clock className="icon" />}
           note="Loading on schedule"
@@ -61,7 +114,7 @@ export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
         />
         <StatCard
           label="Shortfall rate"
-          value="1.2%"
+          value={shortfallRate}
           tone="orange"
           icon={<AlertTriangle className="icon" />}
           note="Below 2% threshold"
@@ -89,29 +142,7 @@ export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  {
-                    bay: "A-01",
-                    vehicle: "WP NC-4872",
-                    dest: "Colombo South Route",
-                    status: "Loading",
-                    progress: 68,
-                  },
-                  {
-                    bay: "A-04",
-                    vehicle: "WP CB-1922",
-                    dest: "Kandy Express",
-                    status: "Staging",
-                    progress: 12,
-                  },
-                  {
-                    bay: "B-02",
-                    vehicle: "WP LN-8831",
-                    dest: "Negombo North",
-                    status: "Complete",
-                    progress: 100,
-                  },
-                ].map((item, idx) => (
+                {assignments.map((item, idx) => (
                   <tr key={idx}>
                     <td>
                       <span className="stop-number">{item.bay}</span>

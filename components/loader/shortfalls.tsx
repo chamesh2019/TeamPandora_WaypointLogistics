@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AlertTriangle, CheckCircle, Box, Clock, Plus, X } from "lucide-react";
 import { Button, StatCard, StatusBadge } from "../design-system";
+import type { LoaderExceptionDto } from "../../lib/types/loader-api";
 
 interface ShortfallsProps {
   notify?: (msg: string) => void;
@@ -48,11 +49,61 @@ const existingShortfalls = [
 ];
 
 export function Shortfalls({ notify }: ShortfallsProps) {
+  const [shortfalls, setShortfalls] = useState(existingShortfalls);
   const [showModal, setShowModal] = useState(false);
   const [selectedType, setSelectedType] = useState("Missing items");
+  const [qtyInput, setQtyInput] = useState("6");
+  const [notesInput, setNotesInput] = useState("");
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/loader/exceptions")
+      .then((res) => res.json())
+      .then((body) => {
+        if (isMounted && body && body.data && body.data.length > 0) {
+          const mapped = body.data.map((sf: LoaderExceptionDto) => ({
+            id: sf.exceptionId,
+            store: sf.storeName || "Pettah Fresh · Stop 1",
+            item: sf.itemName || "Stock Item",
+            qty: `${sf.quantityShort} units short`,
+            status: sf.status,
+            time: sf.createdAt && sf.createdAt.includes("T") ? sf.createdAt.split("T")[1].slice(0, 5) : sf.createdAt || "02:14",
+            trip: sf.tripId,
+          }));
+          setShortfalls(mapped);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSubmit = async () => {
     setShowModal(false);
+    try {
+      const typeEnum =
+        selectedType === "Damaged stock"
+          ? "DAMAGED_CARTON"
+          : selectedType === "Temperature breach"
+          ? "TEMPERATURE_NONCOMPLIANT"
+          : "MISSING_STOCK";
+
+      await fetch("/api/loader/exceptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tripId: "TRP-250613-11",
+          orderId: "ORD-001",
+          exceptionType: typeEnum,
+          quantityShort: Number(qtyInput) || 1,
+          notes: notesInput,
+        }),
+      });
+    } catch {
+      // offline fallback
+    }
+
     notify?.("Shortfall reported. Control tower notified.");
   };
 
@@ -129,7 +180,7 @@ export function Shortfalls({ notify }: ShortfallsProps) {
               </tr>
             </thead>
             <tbody>
-              {existingShortfalls.map((sf) => (
+              {shortfalls.map((sf) => (
                 <tr key={sf.id}>
                   <td className="tid">{sf.id}</td>
                   <td style={{ fontWeight: 600 }}>{sf.store}</td>
@@ -196,10 +247,20 @@ export function Shortfalls({ notify }: ShortfallsProps) {
             <input type="text" placeholder="e.g. Anchor Butter 500g" />
 
             <label>Quantity short</label>
-            <input type="number" placeholder="e.g. 6" />
+            <input
+              type="number"
+              placeholder="e.g. 6"
+              value={qtyInput}
+              onChange={(e) => setQtyInput(e.target.value)}
+            />
 
             <label>Notes (optional)</label>
-            <textarea placeholder="Additional context…" rows={2} />
+            <textarea
+              placeholder="Additional context…"
+              rows={2}
+              value={notesInput}
+              onChange={(e) => setNotesInput(e.target.value)}
+            />
 
             <div className="modal-actions">
               <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
