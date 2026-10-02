@@ -31,15 +31,17 @@ export async function POST(request: Request) {
         SELECT 
           o.order_id,
           o.outlet_id,
-          ot.outlet_name,
-          o.brand_id as brand,
+          ot.outlet_id as outlet_name,
+          ot.brand_id as brand,
           ot.district_id as district,
           ot.depot_id as depot,
           o.temp_requirement,
           ot.parking_constraint,
           ot.dock_type,
-          o.total_weight_kg as weight,
-          o.total_volume_m3 as volume
+          o.order_weight_kg as weight,
+          o.order_volume_m3 as volume,
+          o.deferred_yesterday,
+          o.days_since_last_served
         FROM orders o
         JOIN outlets ot ON o.outlet_id = ot.outlet_id
         WHERE (o.dispatch_date = $1 OR o.order_date = $1)
@@ -65,8 +67,8 @@ export async function POST(request: Request) {
           dock_type: r.dock_type,
           weight: Number(r.weight),
           volume: Number(r.volume),
-          deferred_yesterday: false,
-          days_since_last_served: 1,
+          deferred_yesterday: Boolean(r.deferred_yesterday),
+          days_since_last_served: Number(r.days_since_last_served || 1),
         }));
       }
 
@@ -92,8 +94,8 @@ export async function POST(request: Request) {
           status: r.status,
         }));
       }
-    } catch {
-      // In offline/mock test environments where DB isn't running
+    } catch (dbErr) {
+      console.warn('Database query failed in allocate route:', dbErr);
       orders = [];
       fleet = [];
     }
