@@ -73,20 +73,20 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "relative rounded-[14px] p-[22px] bg-white dark:bg-[#121620] border border-black/[0.07] dark:border-white/[0.08] shadow-[0_2px_12px_rgba(15,16,32,0.07),0_0_0_1px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_28px_rgba(15,16,32,0.1)] hover:-translate-y-[2px] transition-all duration-200 overflow-hidden font-sans",
-        className
+        "relative w-full rounded-[16px] p-[26px] bg-white dark:bg-[#121620] border border-black/[0.07] dark:border-white/[0.08] shadow-[0_2px_12px_rgba(15,16,32,0.07),0_0_0_1px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_28px_rgba(15,16,32,0.1)] hover:-translate-y-[2px] transition-all duration-200 overflow-hidden font-sans",
+        className,
       )}
     >
       {/* Header: Label & Icon */}
-      <div className="flex items-start justify-between mb-3.5">
-        <span className="text-[11px] font-medium text-[#7B7B9D] dark:text-slate-400">
+      <div className="mb-4 flex items-start justify-between">
+        <span className="text-[12px] font-medium text-[#7B7B9D] dark:text-slate-400">
           {label}
         </span>
         {icon && (
           <div
             className={cn(
-              "w-9 h-9 rounded-[10px] grid place-items-center flex-shrink-0 text-sm",
-              toneMap.icon
+              "h-9 w-9 rounded-[10px] grid place-items-center flex-shrink-0 text-sm",
+              toneMap.icon,
             )}
           >
             {icon}
@@ -95,7 +95,7 @@ export function StatCard({
       </div>
 
       {/* Main Metric Value */}
-      <div className="text-[30px] font-extrabold tracking-[-0.04em] text-[#0F1020] dark:text-white leading-none mb-1.5 font-sans">
+      <div className="mb-2 text-[36px] font-extrabold tracking-[-0.04em] text-[#0F1020] dark:text-white leading-none font-sans">
         {value}
       </div>
 
@@ -108,7 +108,7 @@ export function StatCard({
                 ? "text-[#10B981]"
                 : trend.up === false
                   ? "text-[#EF4444]"
-                  : "text-[#7B7B9D]"
+                  : "text-[#7B7B9D]",
             )}
           >
             {trend.up ? "▲" : trend.up === false ? "▼" : "•"} {trend.text}
@@ -117,14 +117,14 @@ export function StatCard({
       )}
 
       {note && (
-        <div className={cn("text-[9px] font-semibold mt-1", toneMap.note)}>
+        <div className={cn("mt-1 text-[10px] font-semibold", toneMap.note)}>
           {note}
         </div>
       )}
 
       {/* Mini Sparkline Chart */}
       {bars && bars.length > 0 && (
-        <div className="mt-3.5 h-[44px] flex items-end gap-[3px]">
+        <div className="mt-4 flex h-[44px] items-end gap-[3px]">
           {bars.map((h, idx) => {
             const isLast = idx === bars.length - 1;
             return (
@@ -132,7 +132,7 @@ export function StatCard({
                 key={idx}
                 className={cn(
                   "flex-1 rounded-t-[3px] transition-[height] duration-300",
-                  isLast ? toneMap.barActive : toneMap.bar
+                  isLast ? toneMap.barActive : toneMap.bar,
                 )}
                 style={{ height: `${Math.max(12, h)}%` }}
               />
