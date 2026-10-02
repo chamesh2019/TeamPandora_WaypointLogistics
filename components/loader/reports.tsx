@@ -2,6 +2,7 @@
 
 import React from "react";
 import { TrendingUp } from "lucide-react";
+import { Button, StatCard } from "../design-system";
 
 interface ReportsProps {
   notify?: (msg: string) => void;
@@ -18,10 +19,10 @@ const weeklyData = [
 ];
 
 const kpiCards = [
-  { label: "Cartons loaded this week", value: "1,842", delta: "+4.2%", tone: "green" },
-  { label: "Shortfalls reported", value: "7", delta: "-2 vs last week", tone: "orange" },
-  { label: "Damage reports", value: "2", delta: "All resolved", tone: "green" },
-  { label: "On-time departures", value: "94%", delta: "+1.1%", tone: "green" },
+  { label: "Cartons loaded this week", value: "1,842", delta: "+4.2%", tone: "green" as const },
+  { label: "Shortfalls reported", value: "7", delta: "-2 vs last week", tone: "orange" as const },
+  { label: "Damage reports", value: "2", delta: "All resolved", tone: "green" as const },
+  { label: "On-time departures", value: "94%", delta: "+1.1%", tone: "green" as const },
 ];
 
 const perfRows = [
@@ -44,28 +45,25 @@ export function Reports({ notify }: ReportsProps) {
           <div className="section-title">Loader performance</div>
           <div className="section-copy">Peliyagoda depot · Week ending {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
         </div>
-        <button
-          className="secondary button"
+        <Button
+          variant="secondary"
           onClick={() => notify?.("Report exported.")}
         >
           <TrendingUp className="icon-small" /> Export report
-        </button>
+        </Button>
       </div>
 
       {/* KPI Cards */}
       <section className="stats-grid">
         {kpiCards.map((card) => (
-          <div className="stat-card" key={card.label}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>
-              {card.label}
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: "var(--ink)", lineHeight: 1 }}>
-              {card.value}
-            </div>
-            <div style={{ fontSize: 9, color: `var(--${card.tone})`, marginTop: 6, fontWeight: 600 }}>
-              {card.delta}
-            </div>
-          </div>
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            tone={card.tone}
+            note={card.delta}
+            bars={[]}
+          />
         ))}
       </section>
 

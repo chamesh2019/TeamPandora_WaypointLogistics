@@ -12,13 +12,20 @@ import { signOut } from "../../lib/auth-client";
 
 type Tab = "Overview" | "Active trips" | "Manifests" | "Shortfalls" | "Reports";
 
-const USER_NAME = "Ravi Fernando";
-const USER_INITIALS = "RF";
-
 export default function LoaderPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [toast, setToast] = useState<string | null>(null);
+
+  const { data: session } = useSession();
+  const userName = session?.user?.name || session?.user?.username || "Sunil Jayasinghe";
+  const userInitials =
+    userName
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "SJ";
 
   const notify = (msg: string) => {
     setToast(msg);
@@ -41,8 +48,8 @@ export default function LoaderPage() {
       {/* ── Top Navigation ──────────────────────────────────────── */}
       <TopNav
         currentRole="Loader"
-        userName={USER_NAME}
-        userInitials={USER_INITIALS}
+        userName={userName}
+        userInitials={userInitials}
         activeTab={activeTab}
         onTabChange={(tabId) => setActiveTab(tabId as Tab)}
         onLogout={handleLogout}
@@ -52,7 +59,7 @@ export default function LoaderPage() {
       <main className="main">
         <div className="content">
           {activeTab === "Overview" && (
-            <LoaderOverview name={USER_NAME} notify={notify} />
+            <LoaderOverview name={userName} notify={notify} />
           )}
           {activeTab === "Active trips" && <ActiveTrips notify={notify} />}
           {activeTab === "Manifests" && <Manifests notify={notify} />}

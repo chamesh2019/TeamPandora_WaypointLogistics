@@ -33,4 +33,33 @@ describe("Loader Page & Components Verification", () => {
     expect(css).toContain(".toast");
     expect(css).toContain(".data-table");
   });
+
+  it("verifies loader views reuse design-system components and dynamic auth session", () => {
+    const pageCode = fs.readFileSync(loaderPagePath, "utf-8");
+    expect(pageCode).toContain("useSession");
+    expect(pageCode).toContain("signOut");
+
+    const overviewCode = fs.readFileSync(path.resolve(__dirname, "../components/loader/overview.tsx"), "utf-8");
+    expect(overviewCode).toContain("StatCard");
+    expect(overviewCode).toContain("Button");
+    expect(overviewCode).toContain("StatusBadge");
+
+    const activeTripsCode = fs.readFileSync(path.resolve(__dirname, "../components/loader/active-trips.tsx"), "utf-8");
+    expect(activeTripsCode).toContain("StatCard");
+    expect(activeTripsCode).toContain("Button");
+    expect(activeTripsCode).toContain("StatusBadge");
+
+    const manifestsCode = fs.readFileSync(path.resolve(__dirname, "../components/loader/manifests.tsx"), "utf-8");
+    expect(manifestsCode).toContain("StatCard");
+    expect(manifestsCode).toContain("Button");
+
+    const shortfallsCode = fs.readFileSync(path.resolve(__dirname, "../components/loader/shortfalls.tsx"), "utf-8");
+    expect(shortfallsCode).toContain("StatCard");
+    expect(shortfallsCode).toContain("Button");
+    expect(shortfallsCode).toContain("StatusBadge");
+
+    const reportsCode = fs.readFileSync(path.resolve(__dirname, "../components/loader/reports.tsx"), "utf-8");
+    expect(reportsCode).toContain("StatCard");
+    expect(reportsCode).toContain("Button");
+  });
 });

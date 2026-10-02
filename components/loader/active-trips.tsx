@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Truck, Box, Clock, CheckCircle } from "lucide-react";
+import { Button, StatCard, StatusBadge } from "../design-system";
 
 interface ActiveTripsProps {
   notify?: (msg: string) => void;
@@ -65,38 +66,38 @@ export function ActiveTrips({ notify }: ActiveTripsProps) {
       </div>
 
       <section className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Trips today</span>
-            <div className="stat-icon blue"><Truck className="icon" /></div>
-          </div>
-          <div className="stat-value">3</div>
-          <div className="stat-note blue">2 loading · 1 pending</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Cartons total</span>
-            <div className="stat-icon green"><Box className="icon" /></div>
-          </div>
-          <div className="stat-value">340</div>
-          <div className="stat-note green">Across 30 stops</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">First departure</span>
-            <div className="stat-icon purple"><Clock className="icon" /></div>
-          </div>
-          <div className="stat-value">03:30</div>
-          <div className="stat-note purple">TRP-250613-01</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Ready to depart</span>
-            <div className="stat-icon orange"><CheckCircle className="icon" /></div>
-          </div>
-          <div className="stat-value">1</div>
-          <div className="stat-note orange">TRP-250613-02</div>
-        </div>
+        <StatCard
+          label="Trips today"
+          value={3}
+          tone="blue"
+          icon={<Truck className="icon" />}
+          note="2 loading · 1 pending"
+          bars={[]}
+        />
+        <StatCard
+          label="Cartons total"
+          value={340}
+          tone="green"
+          icon={<Box className="icon" />}
+          note="Across 30 stops"
+          bars={[]}
+        />
+        <StatCard
+          label="First departure"
+          value="03:30"
+          tone="purple"
+          icon={<Clock className="icon" />}
+          note="TRP-250613-01"
+          bars={[]}
+        />
+        <StatCard
+          label="Ready to depart"
+          value={1}
+          tone="orange"
+          icon={<CheckCircle className="icon" />}
+          note="TRP-250613-02"
+          bars={[]}
+        />
       </section>
 
       <div className="panel">
@@ -119,11 +120,15 @@ export function ActiveTrips({ notify }: ActiveTripsProps) {
                   <div className="tid">{trip.id}</div>
                   <div className="dim" style={{ fontSize: 9, marginTop: 3 }}>{trip.vehicle} · {trip.route}</div>
                   <div style={{ marginTop: 6 }}>
-                    <span
-                      className={`badge ${trip.status === "Loading" ? "planned" : trip.status === "Staging" ? "pending" : "draft"}`}
-                    >
-                      {trip.status}
-                    </span>
+                    <StatusBadge
+                      status={
+                        trip.status === "Loading"
+                          ? "planned"
+                          : trip.status === "Staging"
+                          ? "pending"
+                          : "draft"
+                      }
+                    />
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -166,18 +171,18 @@ export function ActiveTrips({ notify }: ActiveTripsProps) {
             </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-              <button
-                className="primary button"
+              <Button
+                variant="primary"
                 onClick={() => notify?.(`Loading confirmed for ${selected.id}.`)}
               >
                 Mark loading complete
-              </button>
-              <button
-                className="secondary button"
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => notify?.("Shortfall reported to control tower.")}
               >
                 Report shortfall
-              </button>
+              </Button>
             </div>
           </div>
         </div>

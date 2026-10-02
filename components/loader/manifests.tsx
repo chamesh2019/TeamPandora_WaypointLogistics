@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Clipboard, Box, CheckCircle, AlertTriangle, Check } from "lucide-react";
+import { Button, StatCard, StatusBadge } from "../design-system";
 
 interface ManifestsProps {
   notify?: (msg: string) => void;
@@ -49,47 +50,47 @@ export function Manifests({ notify }: ManifestsProps) {
           <div className="section-title">Loading manifests</div>
           <div className="section-copy">LIFO sequence · Load final stop first · Trip TRP-250613-11</div>
         </div>
-        <button
-          className="secondary button"
+        <Button
+          variant="secondary"
           onClick={() => notify?.("Shortfall reported.")}
         >
           <AlertTriangle className="icon-small" /> Report shortfall
-        </button>
+        </Button>
       </div>
 
       <section className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Stops to load</span>
-            <div className="stat-icon blue"><Clipboard className="icon" /></div>
-          </div>
-          <div className="stat-value">6</div>
-          <div className="stat-note blue">{completedCount} completed</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Total cartons</span>
-            <div className="stat-icon green"><Box className="icon" /></div>
-          </div>
-          <div className="stat-value">104</div>
-          <div className="stat-note green">1,872 kg total</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Time to departure</span>
-            <div className="stat-icon purple"><CheckCircle className="icon" /></div>
-          </div>
-          <div className="stat-value">38 min</div>
-          <div className="stat-note purple">On schedule</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Shortfalls</span>
-            <div className="stat-icon orange"><AlertTriangle className="icon" /></div>
-          </div>
-          <div className="stat-value">0</div>
-          <div className="stat-note orange">All items available</div>
-        </div>
+        <StatCard
+          label="Stops to load"
+          value={6}
+          tone="blue"
+          icon={<Clipboard className="icon" />}
+          note={`${completedCount} completed`}
+          bars={[]}
+        />
+        <StatCard
+          label="Total cartons"
+          value={104}
+          tone="green"
+          icon={<Box className="icon" />}
+          note="1,872 kg total"
+          bars={[]}
+        />
+        <StatCard
+          label="Time to departure"
+          value="38 min"
+          tone="purple"
+          icon={<CheckCircle className="icon" />}
+          note="On schedule"
+          bars={[]}
+        />
+        <StatCard
+          label="Shortfalls"
+          value={0}
+          tone="orange"
+          icon={<AlertTriangle className="icon" />}
+          note="All items available"
+          bars={[]}
+        />
       </section>
 
       <div className="main-grid">
@@ -136,13 +137,14 @@ export function Manifests({ notify }: ManifestsProps) {
                 <span style={{ width: `${(completedCount / stops.length) * 100}%` }} />
               </div>
             </div>
-            <button
-              className="primary button full"
-              style={{ marginTop: 12 }}
+            <Button
+              variant="primary"
+              size="full"
+              className="mt-3"
               onClick={handleSignOff}
             >
               <Check className="icon-small" /> SIGN OFF MANIFEST
-            </button>
+            </Button>
           </div>
         </div>
 

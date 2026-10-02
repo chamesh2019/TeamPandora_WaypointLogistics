@@ -1,5 +1,6 @@
 import React from "react";
 import { Truck, Box, Clock, AlertTriangle } from "lucide-react";
+import { Button, StatCard, StatusBadge } from "../design-system";
 
 interface LoaderOverviewProps {
   name: string;
@@ -25,55 +26,47 @@ export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
           </div>
           <div className="section-copy">Peliyagoda loading bay · Trip TRP-250613-11</div>
         </div>
-        <button
-          className="secondary button"
+        <Button
+          variant="secondary"
           onClick={() => notify?.("Shortfall alert sent to control tower.")}
         >
           <AlertTriangle className="icon-small" /> Report shortfall
-        </button>
+        </Button>
       </div>
 
       <section className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Active bays</span>
-            <div className="stat-icon blue">
-              <Truck className="icon" />
-            </div>
-          </div>
-          <div className="stat-value">4</div>
-          <div className="stat-note blue">2 loading now</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Cartons staged</span>
-            <div className="stat-icon green">
-              <Box className="icon" />
-            </div>
-          </div>
-          <div className="stat-value">284</div>
-          <div className="stat-note green">86% verified</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Time to departure</span>
-            <div className="stat-icon purple">
-              <Clock className="icon" />
-            </div>
-          </div>
-          <div className="stat-value">38 min</div>
-          <div className="stat-note purple">Loading on schedule</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-label">Shortfall rate</span>
-            <div className="stat-icon orange">
-              <AlertTriangle className="icon" />
-            </div>
-          </div>
-          <div className="stat-value">1.2%</div>
-          <div className="stat-note orange">Below 2% threshold</div>
-        </div>
+        <StatCard
+          label="Active bays"
+          value={4}
+          tone="blue"
+          icon={<Truck className="icon" />}
+          note="2 loading now"
+          bars={[]}
+        />
+        <StatCard
+          label="Cartons staged"
+          value={284}
+          tone="green"
+          icon={<Box className="icon" />}
+          note="86% verified"
+          bars={[]}
+        />
+        <StatCard
+          label="Time to departure"
+          value="38 min"
+          tone="purple"
+          icon={<Clock className="icon" />}
+          note="Loading on schedule"
+          bars={[]}
+        />
+        <StatCard
+          label="Shortfall rate"
+          value="1.2%"
+          tone="orange"
+          icon={<AlertTriangle className="icon" />}
+          note="Below 2% threshold"
+          bars={[]}
+        />
       </section>
       
       <div className="main-grid">
@@ -126,17 +119,15 @@ export function LoaderOverview({ name, notify }: LoaderOverviewProps) {
                     <td className="tid">{item.vehicle}</td>
                     <td className="dim">{item.dest}</td>
                     <td>
-                      <span
-                        className={`badge ${
+                      <StatusBadge
+                        status={
                           item.status === "Complete"
                             ? "delivered"
                             : item.status === "Loading"
                             ? "planned"
                             : "pending"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
+                        }
+                      />
                     </td>
                     <td>
                       <div className="progress-copy">
