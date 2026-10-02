@@ -200,8 +200,12 @@ export class LoaderService {
 
   /**
    * Retrieves loading manifest sorted in reverse LIFO sequence (load_sequence ASC).
+   * Enforces optional depot scoping to prevent tenant bleed.
    */
-  static async getTripManifest(tripId: string): Promise<LoaderManifestDto | null> {
+  static async getTripManifest(
+    tripId: string,
+    depotId?: string
+  ): Promise<LoaderManifestDto | null> {
     try {
       const res = await pool.query(
         `SELECT 
@@ -217,6 +221,7 @@ export class LoaderService {
           o.order_units,
           o.order_weight_kg,
           t.vehicle_id,
+          t.depot_id,
           u.full_name AS driver_name,
           COALESCE(lm.manifest_id, 'MAN-' || ts.trip_id) AS manifest_id,
           COALESCE(lm.status, 'LOADING') AS manifest_status,
@@ -228,7 +233,7 @@ export class LoaderService {
         JOIN orders o ON ts.order_id = o.order_id
         LEFT JOIN loading_manifests lm ON ts.trip_id = lm.trip_id
         LEFT JOIN (
-          SELECT order_id, 'SHORTFALL_FLAGGED' AS shortfall_status
+          SELECT DISTINCT order_id, 'SHORTFALL_FLAGGED' AS shortfall_status
           FROM loading_exceptions
           WHERE resolution = 'PENDING'
         ) lex ON ts.order_id = lex.order_id
@@ -242,6 +247,14 @@ export class LoaderService {
       }
 
       const rows = res.rows;
+      if (
+        depotId &&
+        rows[0].depot_id &&
+        rows[0].depot_id.toUpperCase() !== depotId.toUpperCase()
+      ) {
+        return null;
+      }
+
       let chilledCount = 0;
       let ambientCount = 0;
 
@@ -288,13 +301,28 @@ export class LoaderService {
 
   /**
    * Signs off on a manifest and marks trip status as verified/staged.
+   * Scopes to loader's depot if provided.
    */
   static async verifyManifest(
     tripId: string,
-    loaderId: string
+    loaderId: string,
+    depotId?: string
   ): Promise<{ success: boolean; manifestId: string; status: string }> {
     const manifestId = `MAN-${tripId}`;
     try {
+      if (depotId) {
+        const tripCheck = await pool.query(
+          "SELECT depot_id FROM trips WHERE trip_id = $1",
+          [tripId]
+        );
+        if (
+          tripCheck.rows.length > 0 &&
+          tripCheck.rows[0].depot_id.toUpperCase() !== depotId.toUpperCase()
+        ) {
+          return { success: false, manifestId, status: "FORBIDDEN_DEPOT" };
+        }
+      }
+
       await pool.query(
         `INSERT INTO loading_manifests (manifest_id, trip_id, loader_id, status, completed_at)
          VALUES ($1, $2, $3, 'VERIFIED', NOW())

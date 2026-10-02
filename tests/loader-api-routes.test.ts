@@ -183,4 +183,38 @@ describe("Loader REST API Routes", () => {
     const body = await res.json();
     expect(body.data.quantityShort).toBe(6);
   });
+
+  it("POST /api/loader/exceptions rejects invalid quantityShort with 400", async () => {
+    const req = new Request("http://localhost:3000/api/loader/exceptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tripId: "TRP-250613-11",
+        orderId: "ORD-001",
+        exceptionType: "MISSING_STOCK",
+        quantityShort: -3,
+      }),
+    });
+
+    const res = await reportException(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("INVALID_QUANTITY");
+  });
+
+  it("POST /api/loader/manifests/[id]/verify rejects trip belonging to another depot with 403", async () => {
+    vi.mocked(LoaderService.verifyManifest).mockResolvedValueOnce({
+      success: false,
+      manifestId: "MAN-TRP-KANDY-01",
+      status: "FORBIDDEN_DEPOT",
+    });
+
+    const res = await verifyManifest(
+      new Request("http://localhost:3000/api/loader/manifests/TRP-KANDY-01/verify", {
+        method: "POST",
+      }),
+      { params: Promise.resolve({ id: "TRP-KANDY-01" }) }
+    );
+    expect(res.status).toBe(403);
+  });
 });

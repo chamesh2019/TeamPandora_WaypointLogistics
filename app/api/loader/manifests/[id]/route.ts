@@ -21,7 +21,7 @@ export async function GET(
   }
 
   try {
-    const manifest = await LoaderService.getTripManifest(tripId);
+    const manifest = await LoaderService.getTripManifest(tripId, auth.depotId);
     if (!manifest) {
       return apiError("NOT_FOUND", `Loading manifest for trip ${tripId} not found`, 404);
     }

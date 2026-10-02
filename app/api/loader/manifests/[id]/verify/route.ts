@@ -21,7 +21,10 @@ export async function POST(
   }
 
   try {
-    const result = await LoaderService.verifyManifest(tripId, auth.userId);
+    const result = await LoaderService.verifyManifest(tripId, auth.userId, auth.depotId);
+    if (result.status === "FORBIDDEN_DEPOT") {
+      return apiError("FORBIDDEN", "Trip does not belong to your assigned depot", 403);
+    }
     return apiSuccess(result);
   } catch (error) {
     return apiError(

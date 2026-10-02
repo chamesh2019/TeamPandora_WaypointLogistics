@@ -102,4 +102,34 @@ describe("LoaderService", () => {
     expect(result.exceptionId).toBe("LEX-TEST-001");
     expect(result.quantityShort).toBe(4);
   });
+
+  it("prevents duplicate stops when multiple exceptions exist for the same order", async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [
+        {
+          trip_id: "TRP-250613-11",
+          vehicle_id: "WP NC-4872",
+          manifest_id: "MAN-001",
+          manifest_status: "LOADING",
+          load_sequence: 1,
+          stop_sequence: 1,
+          stop_id: "STP-01",
+          outlet_id: "OUT001",
+          outlet_name: "Pettah Fresh",
+          order_units: 14,
+          order_weight_kg: "252.00",
+          temp_requirement: "AMBIENT",
+          loading_check_status: "SHORTFALL_FLAGGED",
+        },
+      ],
+    } as any);
+
+    const manifest = await LoaderService.getTripManifest("TRP-250613-11", "PELIYAGODA");
+    expect(manifest).not.toBeNull();
+    expect(manifest?.stops).toHaveLength(1);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("SELECT DISTINCT order_id"),
+      expect.arrayContaining(["TRP-250613-11"])
+    );
+  });
 });
