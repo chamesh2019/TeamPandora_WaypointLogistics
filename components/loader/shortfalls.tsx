@@ -112,7 +112,7 @@ export function Shortfalls({ notify }: ShortfallsProps) {
         <div className="panel-head">
           <div>
             <div className="panel-title">Shortfall log</div>
-            <div className="panel-sub">All shortfalls for today's trips</div>
+            <div className="panel-sub">All shortfalls for today&apos;s trips</div>
           </div>
         </div>
         <div className="table-wrap">

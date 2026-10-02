@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TrendingUp, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
 interface ReportsProps {
   notify?: (msg: string) => void;

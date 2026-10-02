@@ -59,7 +59,7 @@ export function ActiveTrips({ notify }: ActiveTripsProps) {
           <div className="panel-title" style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>
             ACTIVE TRIPS
           </div>
-          <div className="section-title">Today's loading schedule</div>
+          <div className="section-title">Today&apos;s loading schedule</div>
           <div className="section-copy">Peliyagoda depot · {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
         </div>
       </div>
