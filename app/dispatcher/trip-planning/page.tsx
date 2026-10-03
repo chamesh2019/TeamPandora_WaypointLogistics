@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   User,
   AlertCircle,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { Button } from "../../../components/design-system/button";
 import { BrandTag, StatusBadge } from "../../../components/design-system/badge";
@@ -276,6 +279,81 @@ export default function DispatcherTripPlanningPage() {
     setSelectedOrderPoolIds([]);
     setShowAddOrdersModal(false);
     triggerToast(`Added ${ordersToAdd.length} orders to ${selectedTrip.id}`);
+  };
+
+  const handleMoveStop = (tripId: string, stopIndex: number, direction: "up" | "down") => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== tripId) return t;
+        const targetIndex = direction === "up" ? stopIndex - 1 : stopIndex + 1;
+        if (targetIndex < 0 || targetIndex >= t.orders.length) return t;
+
+        const newOrders = [...t.orders];
+        const temp = newOrders[stopIndex];
+        newOrders[stopIndex] = newOrders[targetIndex];
+        newOrders[targetIndex] = temp;
+
+        const total = newOrders.length;
+        const resequenced = newOrders.map((ord, idx) => ({
+          ...ord,
+          stopSequence: idx + 1,
+          loadSequence: total - idx,
+        }));
+
+        return { ...t, orders: resequenced };
+      })
+    );
+  };
+
+  const handleRemoveOrderFromTrip = (tripId: string, orderId: string) => {
+    const trip = trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    const removedOrder = trip.orders.find((o) => o.id === orderId || o.orderId === orderId);
+    if (!removedOrder) return;
+
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== tripId) return t;
+        const remaining = t.orders.filter((o) => o.id !== orderId && o.orderId !== orderId);
+        const total = remaining.length;
+        const resequenced = remaining.map((ord, idx) => ({
+          ...ord,
+          stopSequence: idx + 1,
+          loadSequence: total - idx,
+        }));
+
+        const newWeight = resequenced.reduce((sum, o) => sum + o.weightKg, 0);
+        const newVol = Number(resequenced.reduce((sum, o) => sum + o.volumeM3, 0).toFixed(1));
+
+        return {
+          ...t,
+          orders: resequenced,
+          currentWeightKg: newWeight,
+          currentVol: newVol,
+        };
+      })
+    );
+
+    // Return order to unassigned pool
+    setUnassignedOrders((prev) => [
+      ...prev,
+      {
+        id: removedOrder.id,
+        orderId: removedOrder.orderId,
+        store: removedOrder.storeName,
+        district: trip.district,
+        brand: trip.brand,
+        weightKg: removedOrder.weightKg,
+        volumeM3: removedOrder.volumeM3,
+        temperature: trip.brand === "Fresh" ? "Chilled" : "Ambient",
+        priority: "medium",
+        priorityScore: 5,
+        parkingConstraint: "normal",
+        dockType: "rear_dock",
+        lifecycleStatus: "CONFIRMED",
+      },
+    ]);
+    triggerToast(`Order ${orderId} removed from trip and returned to unallocated queue`);
   };
 
   const handleAutoPlanExecution = async () => {
@@ -625,8 +703,30 @@ export default function DispatcherTripPlanningPage() {
                             key={ord.id}
                             className="py-3 flex items-center justify-between hover:bg-slate-50/60 px-2 rounded transition-colors text-xs"
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px] flex items-center justify-center">
+                            <div className="flex items-center gap-2.5">
+                              {selectedTrip.status !== "Finalized" && (
+                                <div className="flex flex-col items-center">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveStop(selectedTrip.id, idx, "up")}
+                                    className="p-0.5 text-slate-400 hover:text-slate-900 disabled:opacity-20 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                    title="Move stop earlier in delivery sequence"
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === selectedTrip.orders.length - 1}
+                                    onClick={() => handleMoveStop(selectedTrip.id, idx, "down")}
+                                    className="p-0.5 text-slate-400 hover:text-slate-900 disabled:opacity-20 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                    title="Move stop later in delivery sequence"
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                              <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px] flex items-center justify-center shrink-0">
                                 {idx + 1}
                               </span>
                               <div>
@@ -639,9 +739,21 @@ export default function DispatcherTripPlanningPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="text-slate-500 text-xs font-medium text-right">
-                              <div>{ord.weightKg} kg · {ord.volumeM3} m³</div>
-                              <div className="text-[10px] text-slate-400">{ord.itemsCount} units</div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-slate-500 text-xs font-medium text-right">
+                                <div>{ord.weightKg} kg · {ord.volumeM3} m³</div>
+                                <div className="text-[10px] text-slate-400">{ord.itemsCount} units</div>
+                              </div>
+                              {selectedTrip.status !== "Finalized" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveOrderFromTrip(selectedTrip.id, ord.id)}
+                                  className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Remove order from trip"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
