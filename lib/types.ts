@@ -1,4 +1,11 @@
 export type Role = "Dispatcher" | "Store Manager" | "Loader" | "Driver";
+export interface NavTabItem {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  href?: string;
+  badgeCount?: number;
+}
 
 export type RetailBrand = "Waypoint Fresh" | "Waypoint Style" | "Waypoint Tech";
 

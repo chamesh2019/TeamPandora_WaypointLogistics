@@ -9,6 +9,7 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   backHref?: string;
+  roleBadge?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }
@@ -17,6 +18,7 @@ export function PageHeader({
   title,
   subtitle,
   backHref,
+  roleBadge,
   children,
   className,
 }: PageHeaderProps) {
@@ -37,6 +39,7 @@ export function PageHeader({
           </Link>
         )}
         <div>
+          {roleBadge && <div className="mb-2">{roleBadge}</div>}
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
             {title}
           </h1>
