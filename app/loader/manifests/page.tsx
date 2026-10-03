@@ -62,9 +62,13 @@ function ManifestsContent() {
           if (!queryTripId) {
             setSelectedTripId((prev) => prev || json.data[0].tripId);
           }
+        } else if (!ignore) {
+          setTrips([]);
         }
       } catch {
-        // Fallback
+        if (!ignore) {
+          setTrips([]);
+        }
       }
     }
     loadTrips();
@@ -75,7 +79,11 @@ function ManifestsContent() {
 
   // 2. Fetch manifest for selectedTripId
   const loadManifest = useCallback(async (tripId: string) => {
-    if (!tripId) return;
+    if (!tripId) {
+      setManifest(null);
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       setError(null);
@@ -98,9 +106,11 @@ function ManifestsContent() {
           setCheckedStops(verifiedStops);
         }
       } else {
+        setManifest(null);
         setError(json?.error?.message || "Failed to load manifest");
       }
     } catch (err) {
+      setManifest(null);
       setError(err instanceof Error ? err.message : "Network error loading manifest");
     } finally {
       setIsLoading(false);
@@ -108,8 +118,13 @@ function ManifestsContent() {
   }, []);
 
   useEffect(() => {
-    const target = selectedTripId || queryTripId || "TRP-250613-11";
-    loadManifest(target);
+    const target = selectedTripId || queryTripId;
+    if (target) {
+      loadManifest(target);
+    } else {
+      setManifest(null);
+      setIsLoading(false);
+    }
   }, [selectedTripId, queryTripId, loadManifest]);
 
   const toggleStop = (stopNum: number) => {
@@ -151,18 +166,18 @@ function ManifestsContent() {
     }
   };
 
-  const totalStops = manifest?.stops.length || 6;
+  const totalStops = manifest?.stops.length || 0;
   const completedCount = checkedStops.size;
   const progressPercent = totalStops > 0 ? (completedCount / totalStops) * 100 : 0;
 
-  const totalCartons = manifest?.stops.reduce((acc, s) => acc + s.cartonsCount, 0) || 104;
-  const totalWeight = manifest?.totalWeightKg || manifest?.stops.reduce((acc, s) => acc + s.weightKg, 0) || 1888;
-  const estLoadTime = Math.max(15, Math.round(totalCartons * 0.35));
-  const departureTime = manifest?.departureTime || "03:30";
-  const vehicleId = manifest?.vehicleId || "WP NC-4872";
-  const maxWeight = manifest?.weightCapKg || 5000;
-  const totalVolume = manifest?.totalVolumeM3 || 18.4;
-  const maxVolume = manifest?.volumeCapM3 || 24;
+  const totalCartons = manifest?.stops ? manifest.stops.reduce((acc, s) => acc + s.cartonsCount, 0) : 0;
+  const totalWeight = manifest ? (manifest.totalWeightKg ?? manifest.stops.reduce((acc, s) => acc + s.weightKg, 0)) : null;
+  const estLoadTime = manifest && totalCartons > 0 ? Math.round(totalCartons * 0.35) : 0;
+  const departureTime = manifest?.departureTime || "-";
+  const vehicleId = manifest?.vehicleId || "-";
+  const maxWeight = manifest?.weightCapKg ?? null;
+  const totalVolume = manifest?.totalVolumeM3 ?? null;
+  const maxVolume = manifest?.volumeCapM3 ?? null;
 
   const isReefer =
     manifest?.vehicleTemp === "reefer" ||
@@ -204,7 +219,10 @@ function ManifestsContent() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => loadManifest(selectedTripId || queryTripId || "TRP-250613-11")}
+              onClick={() => {
+                const target = selectedTripId || queryTripId;
+                if (target) loadManifest(target);
+              }}
               disabled={isLoading}
               className="px-3 py-2 text-[12px] font-semibold"
               title="Refresh manifest"
@@ -230,7 +248,10 @@ function ManifestsContent() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => loadManifest(selectedTripId || queryTripId || "TRP-250613-11")}
+              onClick={() => {
+                const target = selectedTripId || queryTripId;
+                if (target) loadManifest(target);
+              }}
               className="text-xs"
             >
               Retry
@@ -244,33 +265,33 @@ function ManifestsContent() {
             icon={<ClipboardList className="h-4 w-4" />}
             label="Stops to load"
             value={String(totalStops)}
-            note={`${completedCount} completed`}
+            note={manifest ? `${completedCount} completed` : "-"}
             tone="blue"
-            bars={metricBars.blue}
+            bars={manifest ? metricBars.blue : []}
           />
           <StatCard
             icon={<Package className="h-4 w-4" />}
             label="Total cartons"
             value={String(totalCartons)}
-            note={`${Math.round(totalWeight).toLocaleString()} kg`}
+            note={totalWeight !== null ? `${Math.round(totalWeight).toLocaleString()} kg` : "-"}
             tone="green"
-            bars={metricBars.green}
+            bars={manifest ? metricBars.green : []}
           />
           <StatCard
             icon={<Clock className="h-4 w-4" />}
             label="Est. load time"
-            value={`${estLoadTime} min`}
-            note="At current pace"
+            value={manifest && estLoadTime > 0 ? `${estLoadTime} min` : "-"}
+            note={manifest ? "At current pace" : "-"}
             tone="purple"
-            bars={metricBars.purple}
+            bars={manifest ? metricBars.purple : []}
           />
           <StatCard
             icon={<Truck className="h-4 w-4" />}
             label="Departure"
             value={departureTime}
-            note={vehicleId}
+            note={vehicleId !== "-" ? vehicleId : "-"}
             tone="orange"
-            bars={metricBars.orange}
+            bars={manifest ? metricBars.orange : []}
           />
         </section>
 
@@ -284,7 +305,7 @@ function ManifestsContent() {
                   LIFO loading manifest
                 </div>
                 <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
-                  Load final stop first · Stop 1 last (by doors) · Trip {manifest?.tripId || selectedTripId}
+                  Load final stop first · Stop 1 last (by doors){manifest?.tripId ? ` · Trip ${manifest.tripId}` : selectedTripId ? ` · Trip ${selectedTripId}` : ""}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -295,7 +316,7 @@ function ManifestsContent() {
                   </span>
                 )}
                 <span className="inline-flex items-center rounded-[6px] bg-[#FFF8E1] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">
-                  {manifest?.bayNumber || "Bay 01"}
+                  {manifest?.bayNumber || "-"}
                 </span>
               </div>
             </div>
@@ -373,7 +394,7 @@ function ManifestsContent() {
                 Vehicle details
               </div>
               <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
-                {manifest?.bayNumber || "Bay 01"} · Ready
+                {manifest?.bayNumber ? `${manifest.bayNumber} · Ready` : "Bay -"}
               </div>
             </div>
 
@@ -395,7 +416,7 @@ function ManifestsContent() {
                 }`}
               >
                 {isReefer && <Snowflake className="h-3 w-3" />}
-                {isReefer ? "Reefer" : "Ambient"}
+                {manifest ? (isReefer ? "Reefer" : "Ambient") : "-"}
               </span>
 
               {/* Weight / Volume */}
@@ -405,7 +426,11 @@ function ManifestsContent() {
                     Weight loaded
                   </div>
                   <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
-                    {Math.round(totalWeight).toLocaleString()} / {Math.round(maxWeight).toLocaleString()} kg
+                    {totalWeight !== null && maxWeight !== null
+                      ? `${Math.round(totalWeight).toLocaleString()} / ${Math.round(maxWeight).toLocaleString()} kg`
+                      : totalWeight !== null
+                        ? `${Math.round(totalWeight).toLocaleString()} kg`
+                        : "-"}
                   </div>
                 </div>
                 <div className="rounded-[10px] border border-[#E7EAF0] p-3">
@@ -413,7 +438,11 @@ function ManifestsContent() {
                     Volume used
                   </div>
                   <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
-                    {Number(totalVolume).toFixed(1)} / {Math.round(maxVolume)} m³
+                    {totalVolume !== null && maxVolume !== null
+                      ? `${Number(totalVolume).toFixed(1)} / ${Math.round(maxVolume)} m³`
+                      : totalVolume !== null
+                        ? `${Number(totalVolume).toFixed(1)} m³`
+                        : "-"}
                   </div>
                 </div>
               </div>
@@ -423,7 +452,7 @@ function ManifestsContent() {
                 type="button"
                 variant={verifySuccess || manifest?.status === "VERIFIED" ? "secondary" : "primary"}
                 onClick={handleCompleteLoading}
-                disabled={isVerifying || verifySuccess || manifest?.status === "VERIFIED"}
+                disabled={isVerifying || verifySuccess || manifest?.status === "VERIFIED" || !manifest}
                 className="w-full min-h-[44px] px-4 py-3 text-[13px] font-bold flex items-center justify-center gap-2"
               >
                 {isVerifying ? (
@@ -453,9 +482,10 @@ function ManifestsContent() {
           onClose={() => setReportModalOpen(false)}
           onSuccess={() => {
             setReportModalOpen(false);
-            loadManifest(selectedTripId || queryTripId || "TRP-250613-11");
+            const target = selectedTripId || queryTripId;
+            if (target) loadManifest(target);
           }}
-          initialTripId={manifest?.tripId || selectedTripId}
+          initialTripId={manifest?.tripId || selectedTripId || undefined}
         />
       )}
     </div>

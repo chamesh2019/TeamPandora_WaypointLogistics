@@ -40,9 +40,13 @@ export default function ReportShortfallForm({
           if (!initialTripId) {
             setSelectedTrip(json.data[0].tripId);
           }
+        } else if (!ignore) {
+          setTrips([]);
         }
       } catch {
-        // Keep initialTripId or fallback
+        if (!ignore) {
+          setTrips([]);
+        }
       }
     }
     fetchTrips();
@@ -59,9 +63,9 @@ export default function ReportShortfallForm({
       return;
     }
 
-    const tripId = selectedTrip || initialTripId || (trips[0]?.tripId ?? "TRP-250614-01");
+    const tripId = selectedTrip || initialTripId || trips[0]?.tripId;
     if (!tripId) {
-      setErrorMsg("Please select a trip");
+      setErrorMsg("Please select an active trip");
       return;
     }
 
@@ -133,7 +137,7 @@ export default function ReportShortfallForm({
               <Select
                 value={selectedTrip || initialTripId || (trips[0]?.tripId ?? "")}
                 onChange={(e) => setSelectedTrip(e.target.value)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || (trips.length === 0 && !initialTripId)}
               >
                 {trips.length > 0 ? (
                   trips.map((t) => (
@@ -141,12 +145,10 @@ export default function ReportShortfallForm({
                       {t.tripId} · {t.vehicleId} ({t.route})
                     </option>
                   ))
+                ) : initialTripId ? (
+                  <option value={initialTripId}>{initialTripId}</option>
                 ) : (
-                  <>
-                    <option value="TRP-250614-01">TRP-250614-01 (Colombo South)</option>
-                    <option value="TRP-250614-02">TRP-250614-02 (Kandy Express)</option>
-                    <option value="TRP-250614-03">TRP-250614-03 (Negombo North)</option>
-                  </>
+                  <option value="">No active trips available</option>
                 )}
               </Select>
             </div>
@@ -209,7 +211,7 @@ export default function ReportShortfallForm({
             <Button
               type="submit"
               variant="primary"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (!selectedTrip && !initialTripId && trips.length === 0)}
               className="px-5 py-2 text-xs font-bold flex items-center gap-1.5"
             >
               {isSubmitting ? (

@@ -36,9 +36,11 @@ export default function LoaderReportsPage() {
       if (res.ok && json.success && json.data) {
         setReports(json.data);
       } else {
+        setReports(null);
         setError(json?.error?.message || "Failed to load reports");
       }
     } catch (err) {
+      setReports(null);
       setError(err instanceof Error ? err.message : "Failed to load reports");
     } finally {
       setIsLoading(false);
@@ -52,47 +54,39 @@ export default function LoaderReportsPage() {
   const reportCards = [
     {
       label: "CARTONS LOADED THIS WEEK",
-      value: reports ? reports.cartonsLoadedThisWeek.toLocaleString() : "1,842",
-      note: reports ? reports.cartonsGrowthPct : "+4.2%",
-      noteColor: "text-[#10B981]",
+      value: reports ? reports.cartonsLoadedThisWeek.toLocaleString() : "0",
+      note: reports ? reports.cartonsGrowthPct : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
       labelColor: "text-[#4B8EF5]",
     },
     {
       label: "SHORTFALLS REPORTED",
-      value: reports ? String(reports.shortfallsReported) : "7",
-      note: reports ? reports.shortfallsDiffText : "-2 vs last week",
-      noteColor: "text-[#F59E0B]",
+      value: reports ? String(reports.shortfallsReported) : "0",
+      note: reports ? reports.shortfallsDiffText : "-",
+      noteColor: reports ? "text-[#F59E0B]" : "text-[#747B93]",
       labelColor: "text-[#F59E0B]",
     },
     {
       label: "DAMAGE REPORTS",
-      value: reports ? String(reports.damageReports) : "2",
-      note: reports ? reports.damageStatusText : "All resolved",
-      noteColor: "text-[#10B981]",
+      value: reports ? String(reports.damageReports) : "0",
+      note: reports ? reports.damageStatusText : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
       labelColor: "text-[#7C3AED]",
     },
     {
       label: "ON-TIME DEPARTURES",
-      value: reports ? `${reports.onTimeDeparturesPct}%` : "94%",
-      note: reports ? reports.onTimeGrowthText : "+1.1%",
-      noteColor: "text-[#10B981]",
+      value: reports ? `${reports.onTimeDeparturesPct}%` : "-",
+      note: reports ? reports.onTimeGrowthText : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
       labelColor: "text-[#10B981]",
     },
   ];
 
   const weeklyData = reports?.weeklyLoadingData && reports.weeklyLoadingData.length > 0
     ? reports.weeklyLoadingData
-    : [
-        { day: "Mon", value: 312 },
-        { day: "Tue", value: 298 },
-        { day: "Wed", value: 334 },
-        { day: "Thu", value: 276 },
-        { day: "Fri", value: 318 },
-        { day: "Sat", value: 244 },
-        { day: "Sun", value: 60 },
-      ];
+    : [];
 
-  const maxValue = Math.max(...weeklyData.map((d) => d.value), 1);
+  const maxValue = weeklyData.length > 0 ? Math.max(...weeklyData.map((d) => d.value), 1) : 1;
 
   return (
     <>
@@ -174,6 +168,10 @@ export default function LoaderReportsPage() {
               {isLoading && !reports ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="h-6 w-6 animate-spin text-[#4B8EF5]" />
+                </div>
+              ) : weeklyData.length === 0 ? (
+                <div className="py-16 text-center text-[12px] text-[#7B7B9D]">
+                  No weekly loading data available.
                 </div>
               ) : (
                 <div className="px-5 py-8">

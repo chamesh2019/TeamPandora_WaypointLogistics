@@ -41,7 +41,7 @@ const metricBars = {
 
 export default function LoaderPage() {
   const { data: session } = useSession();
-  const userName = session?.user?.name || session?.user?.username || "Sunil Jayasinghe";
+  const userName = session?.user?.name || session?.user?.username || "Loader";
 
   const currentHour = new Date().getHours();
   const greeting =
@@ -76,6 +76,11 @@ export default function LoaderPage() {
 
       if (overviewRes.ok && overviewJson.success) {
         setOverview(overviewJson.data);
+      } else {
+        setOverview(null);
+        if (!overviewRes.ok) {
+          setError(overviewJson?.error?.message || "Failed to load overview data");
+        }
       }
 
       let primaryTrip: LoaderTripSummary | null = null;
@@ -83,29 +88,43 @@ export default function LoaderPage() {
         const trips = tripsJson.data as LoaderTripSummary[];
         primaryTrip = trips.find((t) => t.status === "Loading") || trips[0];
         setActiveTrip(primaryTrip);
-      }
-
-      const targetTripId = primaryTrip?.tripId || "TRP-250613-11";
-      const manifestRes = await fetch(`/api/loader/manifests/${targetTripId}`);
-      const manifestJson = await manifestRes.json();
-
-      if (manifestRes.ok && manifestJson.success && manifestJson.data) {
-        const m = manifestJson.data as LoaderManifestDto;
-        setManifest(m);
-
-        if (m.status === "VERIFIED") {
-          setVerifySuccess(true);
-          const allStopNums = new Set(m.stops.map((s) => s.stopSequence));
-          setCheckedStops(allStopNums);
-        } else {
-          const verifiedStops = new Set<number>();
-          m.stops.forEach((s) => {
-            if (s.isVerified) verifiedStops.add(s.stopSequence);
-          });
-          setCheckedStops(verifiedStops);
+      } else {
+        setActiveTrip(null);
+        if (!tripsRes.ok) {
+          setError(tripsJson?.error?.message || "Failed to load active trips");
         }
       }
+
+      const targetTripId = primaryTrip?.tripId;
+      if (targetTripId) {
+        const manifestRes = await fetch(`/api/loader/manifests/${targetTripId}`);
+        const manifestJson = await manifestRes.json();
+
+        if (manifestRes.ok && manifestJson.success && manifestJson.data) {
+          const m = manifestJson.data as LoaderManifestDto;
+          setManifest(m);
+
+          if (m.status === "VERIFIED") {
+            setVerifySuccess(true);
+            const allStopNums = new Set(m.stops.map((s) => s.stopSequence));
+            setCheckedStops(allStopNums);
+          } else {
+            const verifiedStops = new Set<number>();
+            m.stops.forEach((s) => {
+              if (s.isVerified) verifiedStops.add(s.stopSequence);
+            });
+            setCheckedStops(verifiedStops);
+          }
+        } else {
+          setManifest(null);
+        }
+      } else {
+        setManifest(null);
+      }
     } catch (err) {
+      setOverview(null);
+      setActiveTrip(null);
+      setManifest(null);
       setError(err instanceof Error ? err.message : "Failed to load dashboard data");
     } finally {
       setIsLoading(false);
@@ -155,7 +174,7 @@ export default function LoaderPage() {
     }
   };
 
-  const totalStops = manifest?.stops.length || 6;
+  const totalStops = manifest?.stops.length || 0;
   const completedCount = checkedStops.size;
   const progressPercent = totalStops > 0 ? (completedCount / totalStops) * 100 : 0;
 
@@ -165,14 +184,16 @@ export default function LoaderPage() {
     activeTrip?.vehicleTemp === "reefer" ||
     activeTrip?.vehicleType?.toLowerCase().includes("reefer");
 
-  const vehicleId = manifest?.vehicleId || activeTrip?.vehicleId || "WP NC-4872";
-  const depotName = (overview?.depotId || "Peliyagoda").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-  const tripDisplayId = manifest?.tripId || activeTrip?.tripId || "TRP-250613-11";
+  const vehicleId = manifest?.vehicleId || activeTrip?.vehicleId || "-";
+  const depotName = overview?.depotId
+    ? overview.depotId.toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+    : "-";
+  const tripDisplayId = manifest?.tripId || activeTrip?.tripId || "-";
 
-  const totalWeight = manifest?.totalWeightKg || activeTrip?.totalWeightKg || 2550;
-  const maxWeight = manifest?.weightCapKg || 5000;
-  const totalVolume = manifest?.totalVolumeM3 || activeTrip?.totalVolumeM3 || 12.9;
-  const maxVolume = manifest?.volumeCapM3 || 26;
+  const totalWeight = manifest?.totalWeightKg ?? activeTrip?.totalWeightKg ?? null;
+  const maxWeight = manifest?.weightCapKg ?? null;
+  const totalVolume = manifest?.totalVolumeM3 ?? activeTrip?.totalVolumeM3 ?? null;
+  const maxVolume = manifest?.volumeCapM3 ?? null;
 
   return (
     <>
@@ -192,7 +213,7 @@ export default function LoaderPage() {
                 {greeting}, {userName}
               </h1>
               <p className="mt-1 text-[11px] text-[#747B93]">
-                {depotName} loading bay · Trip {tripDisplayId}
+                {depotName !== "-" ? `${depotName} loading bay` : "Loading bay"} · {tripDisplayId !== "-" ? `Trip ${tripDisplayId}` : "No active trip"}
               </p>
             </div>
 
@@ -233,26 +254,26 @@ export default function LoaderPage() {
             <StatCard
               icon={<Truck className="h-4 w-4" />}
               label="Active bays"
-              value={overview ? String(overview.activeBaysCount) : "4"}
-              note={overview ? `${overview.loadingBaysCount} loading now` : "2 loading now"}
+              value={overview ? String(overview.activeBaysCount) : "0"}
+              note={overview ? `${overview.loadingBaysCount} loading now` : "-"}
               tone="blue"
-              bars={metricBars.blue}
+              bars={overview ? metricBars.blue : []}
             />
             <StatCard
               icon={<Package className="h-4 w-4" />}
               label="Cartons staged"
-              value={overview ? String(overview.cartonsStaged) : "284"}
-              note={overview ? `${overview.cartonsVerifiedPct}% verified` : "86% verified"}
+              value={overview ? String(overview.cartonsStaged) : "0"}
+              note={overview ? `${overview.cartonsVerifiedPct}% verified` : "-"}
               tone="green"
-              bars={metricBars.green}
+              bars={overview ? metricBars.green : []}
             />
             <StatCard
               icon={<Clock className="h-4 w-4" />}
               label="Time to departure"
-              value={overview ? `${overview.departureEtaMin} min` : "38 min"}
-              note="Loading on schedule"
+              value={overview ? `${overview.departureEtaMin} min` : "-"}
+              note={overview ? "Loading on schedule" : "-"}
               tone="purple"
-              bars={metricBars.purple}
+              bars={overview ? metricBars.purple : []}
             />
             <StatCard
               icon={<AlertTriangle className="h-4 w-4" />}
@@ -260,11 +281,13 @@ export default function LoaderPage() {
               value={
                 manifest
                   ? String(manifest.stops.filter((s) => s.hasShortfall).length)
-                  : String(Math.round(overview?.shortfallRatePct || 1.2))
+                  : overview
+                    ? String(Math.round(overview.shortfallRatePct || 0))
+                    : "0"
               }
-              note="Awaiting decision"
+              note={overview || manifest ? "Awaiting decision" : "-"}
               tone="orange"
-              bars={metricBars.orange}
+              bars={overview || manifest ? metricBars.orange : []}
             />
           </section>
 
@@ -289,7 +312,7 @@ export default function LoaderPage() {
                     </span>
                   )}
                   <span className="inline-flex items-center rounded-[6px] bg-[#FFF8E1] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">
-                    {manifest?.bayNumber || "Bay 01"}
+                    {manifest?.bayNumber || "-"}
                   </span>
                 </div>
               </div>
@@ -367,7 +390,7 @@ export default function LoaderPage() {
                   Vehicle details
                 </div>
                 <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
-                  Ready at {manifest?.bayNumber || "Bay 01"}
+                  {manifest?.bayNumber ? `Ready at ${manifest.bayNumber}` : "Bay -"}
                 </div>
               </div>
 
@@ -389,7 +412,7 @@ export default function LoaderPage() {
                   }`}
                 >
                   {isReefer && <Snowflake className="h-3 w-3" />}
-                  {isReefer ? "Reefer truck" : "Ambient truck"}
+                  {manifest || activeTrip ? (isReefer ? "Reefer truck" : "Ambient truck") : "-"}
                 </span>
 
                 {/* Weight / Volume */}
@@ -399,7 +422,11 @@ export default function LoaderPage() {
                       Weight
                     </div>
                     <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
-                      {Math.round(totalWeight).toLocaleString()} / {Math.round(maxWeight).toLocaleString()} kg
+                      {totalWeight !== null && maxWeight !== null
+                        ? `${Math.round(totalWeight).toLocaleString()} / ${Math.round(maxWeight).toLocaleString()} kg`
+                        : totalWeight !== null
+                          ? `${Math.round(totalWeight).toLocaleString()} kg`
+                          : "-"}
                     </div>
                   </div>
                   <div className="rounded-[10px] border border-[#E7EAF0] p-3">
@@ -407,7 +434,11 @@ export default function LoaderPage() {
                       Volume
                     </div>
                     <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
-                      {Number(totalVolume).toFixed(1)} / {Math.round(maxVolume)} m³
+                      {totalVolume !== null && maxVolume !== null
+                        ? `${Number(totalVolume).toFixed(1)} / ${Math.round(maxVolume)} m³`
+                        : totalVolume !== null
+                          ? `${Number(totalVolume).toFixed(1)} m³`
+                          : "-"}
                     </div>
                   </div>
                 </div>
@@ -417,7 +448,7 @@ export default function LoaderPage() {
                   type="button"
                   variant={verifySuccess || manifest?.status === "VERIFIED" ? "secondary" : "primary"}
                   onClick={handleCompleteLoading}
-                  disabled={isVerifying || verifySuccess || manifest?.status === "VERIFIED"}
+                  disabled={isVerifying || verifySuccess || manifest?.status === "VERIFIED" || !manifest}
                   className="w-full min-h-[44px] px-4 py-3 text-[13px] font-bold flex items-center justify-center gap-2"
                 >
                   {isVerifying ? (

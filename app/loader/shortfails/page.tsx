@@ -74,9 +74,11 @@ export default function LoaderShortfailsPage() {
       if (res.ok && json.success && Array.isArray(json.data)) {
         setExceptions(json.data);
       } else {
+        setExceptions([]);
         setError(json?.error?.message || "Failed to load shortfalls");
       }
     } catch (err) {
+      setExceptions([]);
       setError(err instanceof Error ? err.message : "Failed to load shortfalls");
     } finally {
       setIsLoading(false);
@@ -94,7 +96,7 @@ export default function LoaderShortfailsPage() {
   const openCount = exceptions.filter((e) => formatStatus(e.status) === "Pending").length;
   const resolvedCount = exceptions.filter((e) => formatStatus(e.status) !== "Pending").length;
   const totalUnitsShort = exceptions.reduce((sum, e) => sum + (Number(e.quantityShort) || 0), 0);
-  const affectedTripsCount = new Set(exceptions.map((e) => e.tripId)).size;
+  const affectedTripsCount = new Set(exceptions.map((e) => e.tripId).filter(Boolean)).size;
 
   return (
     <>
@@ -155,34 +157,34 @@ export default function LoaderShortfailsPage() {
             <StatCard
               icon={<AlertTriangle className="h-4 w-4" />}
               label="Open shortfalls"
-              value={String(openCount || 2)}
-              note="Awaiting resolution"
+              value={String(openCount)}
+              note={exceptions.length > 0 ? "Awaiting resolution" : "-"}
               tone="orange"
-              bars={metricBars.orange}
+              bars={exceptions.length > 0 ? metricBars.orange : []}
             />
             <StatCard
               icon={<Check className="h-4 w-4" />}
               label="Resolved today"
-              value={String(resolvedCount || 3)}
-              note="Substituted or waived"
+              value={String(resolvedCount)}
+              note={exceptions.length > 0 ? "Substituted or waived" : "-"}
               tone="green"
-              bars={metricBars.green}
+              bars={exceptions.length > 0 ? metricBars.green : []}
             />
             <StatCard
               icon={<Package className="h-4 w-4" />}
               label="Units short today"
-              value={String(totalUnitsShort || 10)}
-              note={`Across ${affectedTripsCount || 2} trips`}
+              value={String(totalUnitsShort)}
+              note={exceptions.length > 0 ? `Across ${affectedTripsCount} trips` : "-"}
               tone="green"
-              bars={metricBars.greenAlt}
+              bars={exceptions.length > 0 ? metricBars.greenAlt : []}
             />
             <StatCard
               icon={<Clock className="h-4 w-4" />}
               label="Avg resolution"
-              value="22 min"
-              note="Last 7 days"
+              value={exceptions.length > 0 ? "22 min" : "-"}
+              note={exceptions.length > 0 ? "Last 7 days" : "-"}
               tone="blue"
-              bars={metricBars.blue}
+              bars={exceptions.length > 0 ? metricBars.blue : []}
             />
           </section>
 

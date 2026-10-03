@@ -64,4 +64,46 @@ describe("Loader Pages Live API Integration", () => {
     expect(reportsCode).toContain("cartonsLoadedThisWeek");
     expect(reportsCode).toContain("weeklyLoadingData");
   });
+
+  it("Loader pages use 0 or - fallbacks on API failure without dummy data", () => {
+    // Overview page checks
+    expect(loaderCode).not.toContain('const targetTripId = primaryTrip?.tripId || "TRP-250613-11"');
+    expect(loaderCode).not.toContain('overview ? String(overview.activeBaysCount) : "4"');
+    expect(loaderCode).not.toContain('overview ? String(overview.cartonsStaged) : "284"');
+    expect(loaderCode).not.toContain('activeTrip?.totalWeightKg || 2550');
+    expect(loaderCode).not.toContain('activeTrip?.totalVolumeM3 || 12.9');
+    expect(loaderCode).not.toContain('activeTrip?.vehicleId || "WP NC-4872"');
+
+    // Active trips page checks
+    expect(activeTripsCode).not.toContain('totalTripsCount || 3');
+    expect(activeTripsCode).not.toContain('totalCartons || 340');
+    expect(activeTripsCode).not.toContain('totalStops || 30');
+    expect(activeTripsCode).not.toContain('trips[0].departure : "03:30"');
+    expect(activeTripsCode).not.toContain('trips[0].tripId : "TRP-250614-01"');
+    expect(activeTripsCode).not.toContain('readyCount || 1');
+
+    // Manifests page checks
+    expect(manifestsCode).not.toContain('selectedTripId || queryTripId || "TRP-250613-11"');
+    expect(manifestsCode).not.toContain('manifest?.stops.length || 6');
+    expect(manifestsCode).not.toContain('cartonsCount, 0) || 104');
+    expect(manifestsCode).not.toContain('weightKg, 0) || 1888');
+    expect(manifestsCode).not.toContain('manifest?.departureTime || "03:30"');
+    expect(manifestsCode).not.toContain('manifest?.vehicleId || "WP NC-4872"');
+
+    // Shortfalls page checks
+    expect(shortfailsCode).not.toContain('openCount || 2');
+    expect(shortfailsCode).not.toContain('resolvedCount || 3');
+    expect(shortfailsCode).not.toContain('totalUnitsShort || 10');
+    expect(shortfailsCode).not.toContain('affectedTripsCount || 2');
+
+    // Shortfall modal checks
+    expect(shortfallFormCode).not.toContain('trips[0]?.tripId ?? "TRP-250614-01"');
+    expect(shortfallFormCode).not.toContain('TRP-250614-01 (Colombo South)');
+
+    // Reports page checks
+    expect(reportsCode).not.toContain('"1,842"');
+    expect(reportsCode).not.toContain('reports.shortfallsReported) : "7"');
+    expect(reportsCode).not.toContain('reports.damageReports) : "2"');
+    expect(reportsCode).not.toContain('{ day: "Mon", value: 312 }');
+  });
 });

@@ -63,9 +63,11 @@ export default function LoaderActiveTripsPage() {
       if (res.ok && json.success && Array.isArray(json.data)) {
         setTrips(json.data);
       } else {
+        setTrips([]);
         setError(json?.error?.message || "Failed to load active trips");
       }
     } catch (err) {
+      setTrips([]);
       setError(err instanceof Error ? err.message : "Failed to load active trips");
     } finally {
       setIsLoading(false);
@@ -83,9 +85,10 @@ export default function LoaderActiveTripsPage() {
 
   const totalCartons = trips.reduce((acc, t) => acc + (t.cartons || 0), 0);
   const totalStops = trips.reduce((acc, t) => acc + (t.stops || 0), 0);
-  const firstDeparture = trips.length > 0 ? trips[0].departure : "03:30";
-  const firstTripId = trips.length > 0 ? trips[0].tripId : "TRP-250614-01";
-  const readyTripId = trips.find((t) => t.status === "Ready" || t.status === "Complete")?.tripId || firstTripId;
+  const firstDeparture = trips.length > 0 ? trips[0].departure : "-";
+  const firstTripId = trips.length > 0 ? trips[0].tripId : "-";
+  const readyTrip = trips.find((t) => t.status === "Ready" || t.status === "Complete");
+  const readyTripId = readyTrip?.tripId || "-";
 
   return (
     <>
@@ -135,34 +138,34 @@ export default function LoaderActiveTripsPage() {
             <StatCard
               icon={<Truck className="h-4 w-4" />}
               label="Trips today"
-              value={String(totalTripsCount || 3)}
-              note={`${loadingCount} loading · ${pendingCount} pending`}
+              value={String(totalTripsCount)}
+              note={totalTripsCount > 0 ? `${loadingCount} loading · ${pendingCount} pending` : "-"}
               tone="blue"
-              bars={metricBars.blue}
+              bars={totalTripsCount > 0 ? metricBars.blue : []}
             />
             <StatCard
               icon={<Package className="h-4 w-4" />}
               label="Cartons total"
-              value={String(totalCartons || 340)}
-              note={`Across ${totalStops || 30} stops`}
+              value={String(totalCartons)}
+              note={totalTripsCount > 0 ? `Across ${totalStops} stops` : "-"}
               tone="green"
-              bars={metricBars.green}
+              bars={totalTripsCount > 0 ? metricBars.green : []}
             />
             <StatCard
               icon={<Clock className="h-4 w-4" />}
               label="First departure"
               value={firstDeparture}
-              note={firstTripId}
+              note={firstTripId !== "-" ? firstTripId : "-"}
               tone="purple"
-              bars={metricBars.purple}
+              bars={totalTripsCount > 0 ? metricBars.purple : []}
             />
             <StatCard
               icon={<Check className="h-4 w-4" />}
               label="Ready to depart"
-              value={String(readyCount || 1)}
-              note={readyTripId}
+              value={String(readyCount)}
+              note={readyCount > 0 && readyTripId !== "-" ? readyTripId : "-"}
               tone="green"
-              bars={metricBars.orange}
+              bars={totalTripsCount > 0 ? metricBars.orange : []}
             />
           </section>
 
