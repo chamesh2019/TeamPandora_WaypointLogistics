@@ -270,7 +270,7 @@ export class DispatcherService {
       let paramIdx = 1;
 
       if (options.date) {
-        conditions.push(`(o.order_date = $${paramIdx} OR o.dispatch_date = $${paramIdx})`);
+        conditions.push(`(o.order_date <= $${paramIdx} OR o.dispatch_date = $${paramIdx})`);
         params.push(options.date);
         paramIdx++;
       }
@@ -652,6 +652,23 @@ export class DispatcherService {
           returnTime,
         ]
       );
+
+      // Handle previous stops if trip is being re-assigned
+      const existingStopsRes = await client.query(
+        `SELECT order_id FROM trip_stops WHERE trip_id = $1`,
+        [tripId]
+      );
+      if (existingStopsRes.rows.length > 0) {
+        const prevOrderIds = existingStopsRes.rows.map((r: any) => r.order_id);
+        const removedOrderIds = prevOrderIds.filter((id: string) => !orderIds.includes(id));
+        if (removedOrderIds.length > 0) {
+          await client.query(
+            `UPDATE orders SET lifecycle_status = 'CONFIRMED' WHERE order_id = ANY($1::varchar[])`,
+            [removedOrderIds]
+          );
+        }
+        await client.query(`DELETE FROM trip_stops WHERE trip_id = $1`, [tripId]);
+      }
 
       // Insert trip stops with reverse load sequence
       const totalStops = orders.length;

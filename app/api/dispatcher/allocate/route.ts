@@ -50,7 +50,7 @@ export async function POST(request: Request) {
           o.days_since_last_served
         FROM orders o
         JOIN outlets ot ON o.outlet_id = ot.outlet_id
-        WHERE (o.dispatch_date = $1 OR o.order_date = $1)
+        WHERE (o.dispatch_date = $1 OR o.order_date <= $1)
           AND o.lifecycle_status IN ('SUBMITTED', 'CONFIRMED')
       `;
       const orderParams: any[] = [plan_date];

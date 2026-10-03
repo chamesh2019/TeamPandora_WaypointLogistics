@@ -63,22 +63,35 @@ export default function DispatcherTripPlanningPage() {
       const today = new Date().toISOString().split("T")[0];
       const [tripsRes, allocRes] = await Promise.all([
         fetch(`/api/dispatcher/trips?date=${today}`),
-        fetch(`/api/dispatcher/allocation?date=${today}`),
+        fetch("/api/dispatcher/allocation"),
       ]);
 
+      let loadedTrips: DispatcherTripDto[] = [];
       if (tripsRes.ok) {
         const tripsJson = await tripsRes.json();
         if (tripsJson.success && tripsJson.data?.trips) {
-          const loadedTrips: DispatcherTripDto[] = tripsJson.data.trips;
-          setTrips(loadedTrips);
-          if (loadedTrips.length > 0) {
-            setSelectedTripId((prev) =>
-              loadedTrips.some((t) => t.id === prev) ? prev : loadedTrips[0].id
-            );
-          } else {
-            setSelectedTripId("");
+          loadedTrips = tripsJson.data.trips;
+        }
+      }
+
+      // If no trips found for today, gracefully load all active trips
+      if (loadedTrips.length === 0) {
+        const fallbackTripsRes = await fetch("/api/dispatcher/trips");
+        if (fallbackTripsRes.ok) {
+          const fallbackJson = await fallbackTripsRes.json();
+          if (fallbackJson.success && fallbackJson.data?.trips) {
+            loadedTrips = fallbackJson.data.trips;
           }
         }
+      }
+
+      setTrips(loadedTrips);
+      if (loadedTrips.length > 0) {
+        setSelectedTripId((prev) =>
+          loadedTrips.some((t) => t.id === prev) ? prev : loadedTrips[0].id
+        );
+      } else {
+        setSelectedTripId("");
       }
 
       if (allocRes.ok) {
