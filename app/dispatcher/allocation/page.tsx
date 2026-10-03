@@ -15,7 +15,7 @@ import {
 import { Button } from "../../../components/design-system/button";
 import { FilterTabs, type TabItem } from "../../../components/design-system/tabs";
 import { BrandTag } from "../../../components/design-system/badge";
-import { Panel, PanelHeader } from "../../../components/design-system/panel";
+import { Panel } from "../../../components/design-system/panel";
 
 interface AllocationOrderItem {
   id: string;
@@ -53,93 +53,18 @@ interface AllocationDriver {
   phone?: string;
 }
 
-const FALLBACK_QUEUE: AllocationOrderItem[] = [
-  {
-    id: "ORD-250614-2901",
-    orderId: "ORD-250614-2901",
-    store: "Nugegoda Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    weightKg: 820,
-    volumeM3: 8.4,
-    temperature: "Chilled",
-    priority: "high",
-    parkingConstraint: "normal",
-  },
-  {
-    id: "ORD-250614-2898",
-    orderId: "ORD-250614-2898",
-    store: "Dehiwala Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    weightKg: 610,
-    volumeM3: 6.1,
-    temperature: "Chilled",
-    priority: "high",
-    parkingConstraint: "normal",
-  },
-  {
-    id: "ORD-250614-2895",
-    orderId: "ORD-250614-2895",
-    store: "Wellawatte Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    weightKg: 440,
-    volumeM3: 4.2,
-    temperature: "Ambient",
-    priority: "medium",
-    parkingConstraint: "normal",
-  },
-  {
-    id: "ORD-250614-2828",
-    orderId: "ORD-250614-2828",
-    store: "Kandy Central",
-    brand: "Fresh",
-    district: "Kandy",
-    weightKg: 910,
-    volumeM3: 9.1,
-    temperature: "Chilled",
-    priority: "medium",
-    parkingConstraint: "normal",
-  },
-  {
-    id: "ORD-250614-2824",
-    orderId: "ORD-250614-2824",
-    store: "Maradana Tech",
-    brand: "Tech",
-    district: "Colombo",
-    weightKg: 180,
-    volumeM3: 1.8,
-    temperature: "Ambient",
-    priority: "low",
-    parkingConstraint: "normal",
-  },
-];
-
-const FALLBACK_VEHICLES: AllocationVehicle[] = [
-  { id: "VEH001", name: "VEH001 · Isuzu Forward Reefer 5T", type: "truck", temp: "reefer", isReefer: true, maxWeightKg: 5000, maxVolumeM3: 22, depotId: "PELIYAGODA", status: "available" },
-  { id: "VEH002", name: "VEH002 · Hino 300 Ambient Box 3.5T", type: "truck", temp: "ambient", isReefer: false, maxWeightKg: 3500, maxVolumeM3: 16, depotId: "PELIYAGODA", status: "available" },
-  { id: "VEH003", name: "VEH003 · Toyota HiAce Van 1.2T", type: "van", temp: "ambient", isReefer: false, maxWeightKg: 1200, maxVolumeM3: 7.5, depotId: "KANDY", status: "available" },
-];
-
-const FALLBACK_DRIVERS: AllocationDriver[] = [
-  { id: "usr-driv-001", name: "Nimal Fernando (Commercial Heavy)", username: "driver1" },
-  { id: "d2", name: "Chamara Silva (Commercial Light)", username: "csilva" },
-  { id: "d3", name: "Ruwan Dias (Van Specialist)", username: "rdias" },
-];
-
 export default function AllocationPage() {
-  const [queue, setQueue] = useState<AllocationOrderItem[]>(FALLBACK_QUEUE);
-  const [vehicles, setVehicles] = useState<AllocationVehicle[]>(FALLBACK_VEHICLES);
-  const [drivers, setDrivers] = useState<AllocationDriver[]>(FALLBACK_DRIVERS);
+  const [queue, setQueue] = useState<AllocationOrderItem[]>([]);
+  const [vehicles, setVehicles] = useState<AllocationVehicle[]>([]);
+  const [drivers, setDrivers] = useState<AllocationDriver[]>([]);
   const [tempFilter, setTempFilter] = useState<"All" | "Chilled" | "Ambient">("All");
-  const [selectedOrders, setSelectedOrders] = useState<string[]>(["ORD-250614-2901"]);
-  const [selectedVehicle, setSelectedVehicle] = useState<string>("VEH001");
-  const [selectedDriver, setSelectedDriver] = useState<string>("usr-driv-001");
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<string>("");
+  const [selectedDriver, setSelectedDriver] = useState<string>("");
   const [tripNumber, setTripNumber] = useState<1 | 2>(1);
   const [isAutoAllocating, setIsAutoAllocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (msg: string) => {
@@ -154,33 +79,39 @@ export default function AllocationPage() {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          if (json.data.orders && json.data.orders.length > 0) {
-            setQueue(json.data.orders);
-            // Default selected order if none or existing not found
-            if (!json.data.orders.some((o: AllocationOrderItem) => selectedOrders.includes(o.id))) {
-              setSelectedOrders([json.data.orders[0].id]);
-            }
-          }
-          if (json.data.vehicles && json.data.vehicles.length > 0) {
-            setVehicles(json.data.vehicles);
-            if (!selectedVehicle) {
-              setSelectedVehicle(json.data.vehicles[0].id);
-            }
-          }
-          if (json.data.drivers && json.data.drivers.length > 0) {
-            setDrivers(json.data.drivers);
-            if (!selectedDriver) {
-              setSelectedDriver(json.data.drivers[0].id);
-            }
-          }
+          const fetchedOrders: AllocationOrderItem[] = json.data.orders || [];
+          const fetchedVehicles: AllocationVehicle[] = json.data.vehicles || [];
+          const fetchedDrivers: AllocationDriver[] = json.data.drivers || [];
+
+          setQueue(fetchedOrders);
+          setVehicles(fetchedVehicles);
+          setDrivers(fetchedDrivers);
+
+          setSelectedOrders((prev) => {
+            const stillValid = prev.filter((id) => fetchedOrders.some((o) => o.id === id));
+            if (stillValid.length > 0) return stillValid;
+            return fetchedOrders.length > 0 ? [fetchedOrders[0].id] : [];
+          });
+
+          setSelectedVehicle((prev) => {
+            if (prev && fetchedVehicles.some((v) => v.id === prev)) return prev;
+            return fetchedVehicles.length > 0 ? fetchedVehicles[0].id : "";
+          });
+
+          setSelectedDriver((prev) => {
+            if (prev && fetchedDrivers.some((d) => d.id === prev)) return prev;
+            return fetchedDrivers.length > 0 ? fetchedDrivers[0].id : "";
+          });
         }
+      } else {
+        triggerToast("Failed to load allocation queue from server");
       }
     } catch {
-      // Fallback gracefully to default items
+      triggerToast("Error connecting to server for allocation data");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedOrders, selectedVehicle, selectedDriver]);
+  }, []);
 
   useEffect(() => {
     fetchAllocationData();
@@ -211,31 +142,20 @@ export default function AllocationPage() {
         body: JSON.stringify({ plan_date: today, depot_id: "PELIYAGODA" }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.trips && data.trips.length > 0) {
-          const firstTrip = data.trips[0];
-          const assignedIds = firstTrip.orders.map((o: { order_id: string }) => o.order_id);
-          setSelectedOrders(assignedIds);
-          if (firstTrip.vehicle_id) setSelectedVehicle(firstTrip.vehicle_id);
-          triggerToast(
-            `AI Solver optimized: Trip allocated with ${assignedIds.length} compatible orders for ${firstTrip.vehicle_id}`
-          );
-          return;
-        }
-      }
-      // Fallback auto-allocate grouping if offline
-      const colomboFresh = queue.filter(
-        (o) => o.brand === "Fresh" && o.district === "Colombo"
-      );
-      if (colomboFresh.length > 0) {
-        setSelectedOrders(colomboFresh.slice(0, 3).map((o) => o.id));
-        setSelectedVehicle("VEH001");
-        setSelectedDriver(drivers[0]?.id || "usr-driv-001");
-        triggerToast("AI Allocation Engine grouped compatible Colombo Fresh orders for VEH001");
+      const data = await res.json();
+      if (res.ok && data.success && data.trips && data.trips.length > 0) {
+        const firstTrip = data.trips[0];
+        const assignedIds = firstTrip.orders.map((o: { order_id: string }) => o.order_id);
+        setSelectedOrders(assignedIds);
+        if (firstTrip.vehicle_id) setSelectedVehicle(firstTrip.vehicle_id);
+        triggerToast(
+          `AI Solver optimized: Trip allocated with ${assignedIds.length} orders for ${firstTrip.vehicle_id}`
+        );
+      } else {
+        triggerToast(data.error?.message || "No eligible orders could be allocated by the solver");
       }
     } catch {
-      triggerToast("AI Solver ran offline simulation: Colombo Fresh orders grouped");
+      triggerToast("AI Solver request failed");
     } finally {
       setIsAutoAllocating(false);
     }
@@ -275,9 +195,7 @@ export default function AllocationPage() {
         triggerToast(json.error?.message || "Failed to commit trip assignment");
       }
     } catch {
-      triggerToast(`Trip TRP-${tripNumber} assignment simulated offline`);
-      setQueue((prev) => prev.filter((o) => !selectedOrders.includes(o.id)));
-      setSelectedOrders([]);
+      triggerToast("Network error while committing trip assignment");
     } finally {
       setIsSubmitting(false);
     }
@@ -328,7 +246,7 @@ export default function AllocationPage() {
               disabled={isLoading}
               title="Refresh queue"
             >
-              <RotateCw className={`w-3.5 h-3.5 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+              <RotateCw className={`w-3.5 h-3.5 mr-1 ${isLoading ? "animate-spin text-[#F5C542]" : ""}`} />
               <span>Refresh</span>
             </Button>
 
@@ -336,7 +254,7 @@ export default function AllocationPage() {
               variant="secondary"
               size="compact"
               onClick={handleAutoAllocate}
-              disabled={isAutoAllocating}
+              disabled={isAutoAllocating || queue.length === 0}
             >
               <Sparkles className={`w-3.5 h-3.5 mr-1 text-[#0F1020] ${isAutoAllocating ? "animate-spin" : ""}`} />
               <span>{isAutoAllocating ? "Optimizing..." : "Auto-allocate"}</span>
@@ -357,7 +275,7 @@ export default function AllocationPage() {
                       Order queue
                     </h2>
                     <p className="text-xs text-[#7B7B9D] mt-0.5">
-                      {filteredQueue.length} unallocated orders available for dispatch
+                      {isLoading ? "Loading orders..." : `${filteredQueue.length} unallocated orders available for dispatch`}
                     </p>
                   </div>
                   <div className="text-xs text-[#7B7B9D]">
@@ -377,8 +295,13 @@ export default function AllocationPage() {
 
                 {/* Orders List */}
                 <div className="space-y-2 mt-1 max-h-[600px] overflow-y-auto pr-1">
-                  {filteredQueue.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-[#7B7B9D]">
+                  {isLoading && queue.length === 0 ? (
+                    <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
+                      <RotateCw className="w-5 h-5 animate-spin text-[#F5C542]" />
+                      <p className="text-xs font-medium">Loading unallocated orders...</p>
+                    </div>
+                  ) : filteredQueue.length === 0 ? (
+                    <div className="py-16 text-center text-xs text-[#7B7B9D]">
                       No unallocated orders found matching the filter.
                     </div>
                   ) : (
@@ -481,7 +404,13 @@ export default function AllocationPage() {
                   onChange={(e) => setSelectedVehicle(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-black/[0.08] bg-white text-xs text-[#0F1020] outline-none appearance-none focus:border-[#F5C542] cursor-pointer"
                 >
-                  <option value="" disabled>Select a vehicle...</option>
+                  {isLoading && vehicles.length === 0 ? (
+                    <option value="" disabled>Loading vehicles...</option>
+                  ) : vehicles.length === 0 ? (
+                    <option value="" disabled>No available vehicles</option>
+                  ) : (
+                    <option value="" disabled>Select a vehicle...</option>
+                  )}
                   {vehicles.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -509,7 +438,13 @@ export default function AllocationPage() {
                   onChange={(e) => setSelectedDriver(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-black/[0.08] bg-white text-xs text-[#0F1020] outline-none appearance-none focus:border-[#F5C542] cursor-pointer"
                 >
-                  <option value="" disabled>Select a driver...</option>
+                  {isLoading && drivers.length === 0 ? (
+                    <option value="" disabled>Loading drivers...</option>
+                  ) : drivers.length === 0 ? (
+                    <option value="" disabled>No available drivers</option>
+                  ) : (
+                    <option value="" disabled>Select a driver...</option>
+                  )}
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}

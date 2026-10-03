@@ -32,4 +32,11 @@ describe("Dispatcher Allocation Page Live Integration", () => {
     expect(code).toContain("isWeightValid");
     expect(code).toContain("isVolumeValid");
   });
+
+  it("does not render static dummy mock data before loading actual data", () => {
+    expect(code).not.toContain("FALLBACK_QUEUE");
+    expect(code).not.toContain("INITIAL_QUEUE");
+    expect(code).toContain("Loading unallocated orders...");
+  });
 });
+
