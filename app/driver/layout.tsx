@@ -17,8 +17,8 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
       <Header
         navItems={DRIVER_TABS}
         currentRole="Driver"
-        userName="Nimal Perera"
-        userInitials="NP"
+        brandName="Waypoint"
+        brandSubtitle="Driver"
       />
       {children}
     </>

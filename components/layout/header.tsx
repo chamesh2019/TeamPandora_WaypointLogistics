@@ -159,7 +159,6 @@ export default function Header({
     return resolveActiveHref(pathname, navItems, activeHrefOverride);
   }, [activeHrefOverride, navItems, pathname]);
 
-
   const navTabs = navItems.map((item) => ({
     id: item.href,
     label: item.name,
