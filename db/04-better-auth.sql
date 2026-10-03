@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "user" (
   "depotId" VARCHAR(20) REFERENCES depots(depot_id) ON DELETE SET NULL,
   "outletId" VARCHAR(20) REFERENCES outlets(outlet_id) ON DELETE SET NULL,
   "phoneNumber" VARCHAR(20),
+  "status" VARCHAR(20) NOT NULL DEFAULT 'Active',
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

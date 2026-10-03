@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { auth } from "../auth";
 import { getCutoffInfo } from "../utils/cutoff";
 import type {
   DispatcherOrderDto,
@@ -20,6 +21,12 @@ import type {
   DispatcherFleetKpisResponseData,
   DispatcherFleetResponseData,
   UpdateFleetVehiclePayload,
+  DispatcherUserRole,
+  DispatcherUserDto,
+  DispatcherUsersKpisDto,
+  DispatcherUsersResponseData,
+  CreateDispatcherUserPayload,
+  UpdateDispatcherUserPayload,
 } from "../types/dispatcher-api";
 
 function mapLifecycleStatus(lifecycleStatus: string): DispatcherOrderStatus {
@@ -1265,6 +1272,328 @@ export class DispatcherService {
       vehicleId: currentVeh.vehicle_id,
       status: currentVeh.status,
       assignedDriverId: currentVeh.assigned_driver_id,
+    };
+  }
+
+  /**
+   * Retrieves users roster, role KPI counts, active depots, and outlets
+   */
+  static async getUsers(filters?: {
+    role?: string;
+    search?: string;
+    depotId?: string;
+  }): Promise<DispatcherUsersResponseData> {
+    // 1. KPI Counts across all users
+    const kpiRes = await pool.query(
+      `SELECT "role", COUNT(*)::int AS count FROM "user" GROUP BY "role"`
+    );
+    const kpis: DispatcherUsersKpisDto = {
+      total: 0,
+      dispatchers: 0,
+      drivers: 0,
+      loaders: 0,
+      storeManagers: 0,
+    };
+    for (const r of kpiRes.rows) {
+      const c = r.count;
+      kpis.total += c;
+      if (r.role === "dispatcher") kpis.dispatchers += c;
+      else if (r.role === "driver") kpis.drivers += c;
+      else if (r.role === "loader") kpis.loaders += c;
+      else if (r.role === "store_manager") kpis.storeManagers += c;
+    }
+
+    // 2. Fetch Users with optional filters
+    const whereClauses: string[] = [];
+    const params: unknown[] = [];
+    let pIdx = 1;
+
+    if (filters?.role && filters.role !== "All" && filters.role !== "all") {
+      const normalizedRole = filters.role.toLowerCase().replace(/\s+/g, "_");
+      whereClauses.push(`u."role" = $${pIdx++}`);
+      params.push(normalizedRole);
+    }
+
+    if (filters?.depotId && filters.depotId !== "All") {
+      whereClauses.push(`u."depotId" = $${pIdx++}`);
+      params.push(filters.depotId);
+    }
+
+    if (filters?.search && filters.search.trim()) {
+      const q = `%${filters.search.trim()}%`;
+      whereClauses.push(
+        `(u."name" ILIKE $${pIdx} OR u."username" ILIKE $${pIdx} OR u."email" ILIKE $${pIdx} OR u."phoneNumber" ILIKE $${pIdx} OR u."depotId" ILIKE $${pIdx})`
+      );
+      params.push(q);
+      pIdx++;
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const usersQuery = `
+      SELECT 
+        u."id",
+        u."name",
+        u."username",
+        u."email",
+        u."role",
+        u."depotId",
+        u."outletId",
+        u."phoneNumber",
+        COALESCE(u."status", 'Active') AS status,
+        u."createdAt",
+        (SELECT MAX("createdAt") FROM "session" WHERE "userId" = u."id") AS "lastLogin"
+      FROM "user" u
+      ${whereSql}
+      ORDER BY u."createdAt" DESC, u."name" ASC
+    `;
+    const usersRes = await pool.query(usersQuery, params);
+
+    const users: DispatcherUserDto[] = usersRes.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      username: row.username,
+      email: row.email,
+      role: row.role as DispatcherUserRole,
+      depotId: row.depotId,
+      outletId: row.outletId,
+      phoneNumber: row.phoneNumber,
+      status: (row.status === "Locked" ? "Locked" : "Active"),
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      lastLogin: row.lastLogin ? new Date(row.lastLogin).toISOString() : undefined,
+    }));
+
+    // 3. Active Depots
+    const depotsRes = await pool.query(
+      `SELECT depot_id FROM depots WHERE is_active = TRUE ORDER BY depot_id ASC`
+    );
+    const depots = depotsRes.rows.map((r) => r.depot_id);
+
+    // 4. Outlets
+    const outletsRes = await pool.query(
+      `SELECT outlet_id, contact_name, district_id FROM outlets ORDER BY outlet_id ASC`
+    );
+    const outlets = outletsRes.rows.map((r) => ({
+      outletId: r.outlet_id,
+      name: r.contact_name ? `${r.contact_name} (${r.outlet_id})` : r.outlet_id,
+    }));
+
+    return {
+      kpis,
+      users,
+      depots,
+      outlets,
+    };
+  }
+
+  /**
+   * Creates a user in Better Auth and synchronizes domain users table
+   */
+  static async createUser(payload: CreateDispatcherUserPayload): Promise<{
+    id: string;
+    name: string;
+    username: string;
+    role: DispatcherUserRole;
+  }> {
+    if (!payload.name || !payload.name.trim()) {
+      throw new Error("Full name is required");
+    }
+    if (!payload.username || !payload.username.trim() || payload.username.trim().length < 3) {
+      throw new Error("Username must be at least 3 characters long");
+    }
+    if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())) {
+      throw new Error("A valid email address is required");
+    }
+    if (!payload.password || payload.password.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+    const validRoles: DispatcherUserRole[] = ["dispatcher", "driver", "loader", "store_manager"];
+    if (!validRoles.includes(payload.role)) {
+      throw new Error(`Invalid role '${payload.role}'. Must be one of ${validRoles.join(", ")}`);
+    }
+
+    // Check duplicate username or email beforehand
+    const dupCheck = await pool.query(
+      `SELECT "id" FROM "user" WHERE LOWER("username") = LOWER($1) OR LOWER("email") = LOWER($2) LIMIT 1`,
+      [payload.username.trim(), payload.email.trim()]
+    );
+    if (dupCheck.rows.length > 0) {
+      throw new Error("Username or email is already taken. Please choose another.");
+    }
+
+    const domainDupCheck = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+      [payload.username.trim()]
+    );
+    if (domainDupCheck.rows.length > 0) {
+      throw new Error("Username is already taken in domain registry. Please choose another.");
+    }
+
+    // Provision Better Auth user and credentials
+    let signUpRes: any;
+    try {
+      signUpRes = await auth.api.signUpEmail({
+        body: {
+          name: payload.name.trim(),
+          username: payload.username.trim(),
+          email: payload.email.trim().toLowerCase(),
+          password: payload.password,
+          role: payload.role,
+          depotId: payload.depotId || null,
+          outletId: payload.outletId || null,
+          phoneNumber: payload.phoneNumber ? payload.phoneNumber.trim() : null,
+          status: "Active",
+        },
+      });
+    } catch (err: any) {
+      const msg = err?.message || err?.body?.message || "Failed to create user account";
+      throw new Error(msg);
+    }
+
+    const createdAuthUser = signUpRes.user;
+
+    // Retrieve password hash from Better Auth account table
+    const accRes = await pool.query(
+      `SELECT password FROM "account" WHERE "userId" = $1 LIMIT 1`,
+      [createdAuthUser.id]
+    );
+    const passwordHash = accRes.rows[0]?.password || "better-auth-managed";
+
+    // Synchronize domain users table
+    await pool.query(
+      `INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
+       ON CONFLICT (username) DO UPDATE
+       SET full_name = EXCLUDED.full_name,
+           role = EXCLUDED.role,
+           depot_id = EXCLUDED.depot_id,
+           outlet_id = EXCLUDED.outlet_id,
+           phone_number = EXCLUDED.phone_number,
+           status = EXCLUDED.status`,
+      [
+        createdAuthUser.id,
+        payload.username.trim(),
+        passwordHash,
+        payload.name.trim(),
+        payload.role,
+        payload.depotId || null,
+        payload.outletId || null,
+        payload.phoneNumber ? payload.phoneNumber.trim() : null,
+      ]
+    );
+
+    return {
+      id: createdAuthUser.id,
+      name: createdAuthUser.name,
+      username: createdAuthUser.username,
+      role: createdAuthUser.role,
+    };
+  }
+
+  /**
+   * Updates an existing user and keeps Better Auth and domain tables synchronized
+   */
+  static async updateUser(
+    userId: string,
+    payload: UpdateDispatcherUserPayload
+  ): Promise<{
+    userId: string;
+    status: "Active" | "Locked";
+    name?: string;
+    role?: DispatcherUserRole;
+  }> {
+    const checkRes = await pool.query(
+      `SELECT "id", "name", "username", "role", "depotId", "outletId", "phoneNumber", "status"
+       FROM "user" WHERE "id" = $1`,
+      [userId]
+    );
+    if (checkRes.rows.length === 0) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    const current = checkRes.rows[0];
+
+    // 1. Update Better Auth "user"
+    const updates: string[] = ['"updatedAt" = NOW()'];
+    const params: unknown[] = [userId];
+    let pIdx = 2;
+
+    if (payload.name !== undefined) {
+      updates.push(`"name" = $${pIdx++}`);
+      params.push(payload.name.trim());
+    }
+    if (payload.role !== undefined) {
+      updates.push(`"role" = $${pIdx++}`);
+      params.push(payload.role);
+    }
+    if (payload.depotId !== undefined) {
+      updates.push(`"depotId" = $${pIdx++}`);
+      params.push(payload.depotId);
+    }
+    if (payload.outletId !== undefined) {
+      updates.push(`"outletId" = $${pIdx++}`);
+      params.push(payload.outletId);
+    }
+    if (payload.phoneNumber !== undefined) {
+      updates.push(`"phoneNumber" = $${pIdx++}`);
+      params.push(payload.phoneNumber ? payload.phoneNumber.trim() : null);
+    }
+    if (payload.status !== undefined) {
+      updates.push(`"status" = $${pIdx++}`);
+      params.push(payload.status);
+    }
+
+    await pool.query(
+      `UPDATE "user" SET ${updates.join(", ")} WHERE "id" = $1`,
+      params
+    );
+
+    // 2. Synchronize domain "users"
+    const dUpdates: string[] = [];
+    const dParams: unknown[] = [userId, current.username];
+    let dIdx = 3;
+
+    if (payload.name !== undefined) {
+      dUpdates.push(`full_name = $${dIdx++}`);
+      dParams.push(payload.name.trim());
+    }
+    if (payload.role !== undefined) {
+      dUpdates.push(`role = $${dIdx++}`);
+      dParams.push(payload.role);
+    }
+    if (payload.depotId !== undefined) {
+      dUpdates.push(`depot_id = $${dIdx++}`);
+      dParams.push(payload.depotId);
+    }
+    if (payload.outletId !== undefined) {
+      dUpdates.push(`outlet_id = $${dIdx++}`);
+      dParams.push(payload.outletId);
+    }
+    if (payload.phoneNumber !== undefined) {
+      dUpdates.push(`phone_number = $${dIdx++}`);
+      dParams.push(payload.phoneNumber ? payload.phoneNumber.trim() : null);
+    }
+    if (payload.status !== undefined) {
+      dUpdates.push(`status = $${dIdx++}`);
+      dParams.push(payload.status);
+    }
+
+    if (dUpdates.length > 0) {
+      await pool.query(
+        `UPDATE users SET ${dUpdates.join(", ")} WHERE user_id = $1 OR username = $2`,
+        dParams
+      );
+    }
+
+    // 3. If locked, terminate any active sessions
+    if (payload.status === "Locked") {
+      await pool.query('DELETE FROM "session" WHERE "userId" = $1', [userId]);
+    }
+
+    return {
+      userId,
+      status: (payload.status || current.status || "Active") as "Active" | "Locked",
+      name: payload.name?.trim() || current.name,
+      role: (payload.role || current.role) as DispatcherUserRole,
     };
   }
 }
