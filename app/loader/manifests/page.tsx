@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Header from "../../components/layout/header";
-import { Button, Panel, StatCard } from "../../components/design-system";
-import { useSession } from "../../lib/auth-client";
+import Header from "../../../components/layout/header";
+import { Button, Panel, StatCard } from "../../../components/design-system";
 import {
   AlertTriangle,
   BarChart3,
   Check,
   Clock,
+  ClipboardList,
   LayoutGrid,
   Package,
   Snowflake,
@@ -33,39 +33,49 @@ const metricBars = {
 const manifestStops = [
   {
     stop: 6,
-    name: "Fresh — Nugegoda",
+    name: "Nugegoda Fresh",
     cartons: 18,
     weight: 324,
-    zone: "Chilled · front of hold",
+    zone: "Chilled · front",
   },
   {
     stop: 5,
-    name: "Fresh — Dehiwala",
+    name: "Dehiwala Fresh",
     cartons: 12,
     weight: 216,
     zone: "Chilled · bay B-14",
   },
   {
     stop: 4,
-    name: "Fresh — Wellawatte",
+    name: "Wellawatte Fresh",
     cartons: 24,
     weight: 446,
     zone: "Ambient · bay A-08",
   },
+  {
+    stop: 3,
+    name: "Bambalapitiya Fresh",
+    cartons: 16,
+    weight: 288,
+    zone: "Chilled · bay B-09",
+  },
+  {
+    stop: 2,
+    name: "Maradana Fresh",
+    cartons: 20,
+    weight: 360,
+    zone: "Ambient · bay A-04",
+  },
+  {
+    stop: 1,
+    name: "Pettah Fresh",
+    cartons: 14,
+    weight: 252,
+    zone: "Ambient · near doors",
+  },
 ];
 
-export default function LoaderPage() {
-  const { data: session } = useSession();
-  const userName = session?.user?.name || session?.user?.username || "User";
-
-  const currentHour = new Date().getHours();
-  const greeting =
-    currentHour < 12
-      ? "Good morning"
-      : currentHour < 18
-        ? "Good afternoon"
-        : "Good evening";
-
+export default function LoaderManifestsPage() {
   const totalStops = 6;
   const [checkedStops, setCheckedStops] = useState<Set<number>>(new Set());
 
@@ -88,7 +98,7 @@ export default function LoaderPage() {
     <>
       <Header
         navItems={loaderNavItems}
-        activeHref="/loader"
+        activeHref="/loader/manifests"
         brandName="Waypoint"
         brandSubtitle="Loader"
       />
@@ -99,10 +109,10 @@ export default function LoaderPage() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h1 className="text-[20px] font-extrabold tracking-[-0.04em] text-[#0F1020] sm:text-[28px]">
-                {greeting}, {userName}
+                Loading manifests
               </h1>
               <p className="mt-1 text-[11px] text-[#747B93]">
-                Peliyagoda loading bay · Trip TRP-250613-11
+                LIFO sequence · Load final stop first
               </p>
             </div>
 
@@ -119,34 +129,34 @@ export default function LoaderPage() {
           {/* Stat Cards */}
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5 xl:[&>*]:min-w-[260px]">
             <StatCard
-              icon={<Truck className="h-4 w-4" />}
-              label="Active bays"
-              value="4"
-              note="2 loading now"
+              icon={<ClipboardList className="h-4 w-4" />}
+              label="Stops to load"
+              value="6"
+              note="0 completed"
               tone="blue"
               bars={metricBars.blue}
             />
             <StatCard
               icon={<Package className="h-4 w-4" />}
-              label="Cartons staged"
-              value="284"
-              note="86% verified"
+              label="Total cartons"
+              value="104"
+              note="1,888 kg"
               tone="green"
               bars={metricBars.green}
             />
             <StatCard
               icon={<Clock className="h-4 w-4" />}
-              label="Time to departure"
+              label="Est. load time"
               value="38 min"
-              note="Loading on schedule"
+              note="At current pace"
               tone="purple"
               bars={metricBars.purple}
             />
             <StatCard
-              icon={<AlertTriangle className="h-4 w-4" />}
-              label="Shortfalls"
-              value="2"
-              note="1 awaiting decision"
+              icon={<Truck className="h-4 w-4" />}
+              label="Departure"
+              value="03:30"
+              note="WP NC-4872"
               tone="orange"
               bars={metricBars.orange}
             />
@@ -156,18 +166,13 @@ export default function LoaderPage() {
           <div className="mt-6 grid gap-4 xl:grid-cols-[1.7fr_1fr]">
             {/* LIFO Loading Manifest */}
             <Panel>
-              <div className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <div className="text-[15px] font-bold text-[#0F1020] leading-tight">
-                    LIFO loading manifest
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
-                    Load final stop first · Stop 1 last by the doors
-                  </div>
+              <div className="px-5 py-4 border-b border-[#E7EAF0]">
+                <div className="text-[15px] font-bold text-[#0F1020] leading-tight">
+                  LIFO loading manifest
                 </div>
-                <span className="inline-flex items-center rounded-[6px] bg-[#FFF8E1] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">
-                  Bay 03
-                </span>
+                <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
+                  Load final stop first · Stop 1 last (by doors)
+                </div>
               </div>
 
               <div className="px-5 pb-2">
@@ -226,7 +231,7 @@ export default function LoaderPage() {
                   Vehicle details
                 </div>
                 <div className="mt-0.5 text-[10px] text-[#7B7B9D]">
-                  Ready at Bay 03
+                  Bay 01 · Ready
                 </div>
               </div>
 
@@ -242,14 +247,14 @@ export default function LoaderPage() {
 
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E0F7F7] px-3 py-1 text-[10px] font-bold text-[#0D9488] mb-6">
                   <Snowflake className="h-3 w-3" />
-                  Reefer truck
+                  Reefer
                 </span>
 
                 {/* Weight / Volume */}
-                <div className="grid w-full grid-cols-2 gap-3 mb-6">
+                <div className="grid w-full grid-cols-2 gap-3">
                   <div className="rounded-[10px] border border-[#E7EAF0] p-3">
                     <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7B7B9D]">
-                      Weight
+                      Weight loaded
                     </div>
                     <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
                       3,842 / 5,000 kg
@@ -257,23 +262,13 @@ export default function LoaderPage() {
                   </div>
                   <div className="rounded-[10px] border border-[#E7EAF0] p-3">
                     <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7B7B9D]">
-                      Volume
+                      Volume used
                     </div>
                     <div className="mt-1 text-[13px] font-extrabold text-[#0F1020]">
                       18.4 / 24 m³
                     </div>
                   </div>
                 </div>
-
-                {/* Complete Loading Button */}
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full min-h-[44px] px-4 py-3 text-[13px] font-bold"
-                >
-                  <Check className="h-4 w-4" />
-                  Complete loading
-                </Button>
               </div>
             </Panel>
           </div>
