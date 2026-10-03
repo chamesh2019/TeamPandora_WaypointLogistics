@@ -61,14 +61,17 @@ export async function POST(request: Request) {
     return apiSuccess(result, 201);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to create user";
-    if (
+    const isConstraintError =
+      (err as any)?.code === "23505" ||
+      message.toLowerCase().includes("duplicate") ||
       message.toLowerCase().includes("already") ||
       message.toLowerCase().includes("taken") ||
       message.toLowerCase().includes("exists") ||
       message.toLowerCase().includes("password") ||
       message.toLowerCase().includes("required") ||
-      message.toLowerCase().includes("invalid")
-    ) {
+      message.toLowerCase().includes("invalid");
+
+    if (isConstraintError) {
       return apiError("BAD_REQUEST", message, 400);
     }
     return apiError("INTERNAL_ERROR", message, 500);

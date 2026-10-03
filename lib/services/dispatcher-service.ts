@@ -1459,27 +1459,33 @@ export class DispatcherService {
     const passwordHash = accRes.rows[0]?.password || "better-auth-managed";
 
     // Synchronize domain users table
-    await pool.query(
-      `INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
-       ON CONFLICT (username) DO UPDATE
-       SET full_name = EXCLUDED.full_name,
-           role = EXCLUDED.role,
-           depot_id = EXCLUDED.depot_id,
-           outlet_id = EXCLUDED.outlet_id,
-           phone_number = EXCLUDED.phone_number,
-           status = EXCLUDED.status`,
-      [
-        createdAuthUser.id,
-        payload.username.trim(),
-        passwordHash,
-        payload.name.trim(),
-        payload.role,
-        payload.depotId || null,
-        payload.outletId || null,
-        payload.phoneNumber ? payload.phoneNumber.trim() : null,
-      ]
-    );
+    try {
+      await pool.query(
+        `INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
+         ON CONFLICT (username) DO UPDATE
+         SET full_name = EXCLUDED.full_name,
+             role = EXCLUDED.role,
+             depot_id = EXCLUDED.depot_id,
+             outlet_id = EXCLUDED.outlet_id,
+             phone_number = EXCLUDED.phone_number,
+             status = EXCLUDED.status`,
+        [
+          createdAuthUser.id,
+          payload.username.trim(),
+          passwordHash,
+          payload.name.trim(),
+          payload.role,
+          payload.depotId || null,
+          payload.outletId || null,
+          payload.phoneNumber ? payload.phoneNumber.trim() : null,
+        ]
+      );
+    } catch (domainErr: unknown) {
+      // Compensating action: rollback Better Auth account to prevent orphaned credentials
+      await pool.query('DELETE FROM "user" WHERE "id" = $1', [createdAuthUser.id]);
+      throw domainErr;
+    }
 
     return {
       id: createdAuthUser.id,

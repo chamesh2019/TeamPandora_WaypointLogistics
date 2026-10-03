@@ -92,10 +92,19 @@ export default function DispatcherUsersPage() {
   const [roleFilter, setRoleFilter] = useState<"All" | DispatcherUserRole>("All");
   const [depotFilter, setDepotFilter] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Debounce search query by 300ms to eliminate redundant requests and race conditions
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -131,7 +140,7 @@ export default function DispatcherUsersPage() {
       const params = new URLSearchParams();
       if (roleFilter !== "All") params.set("role", roleFilter);
       if (depotFilter !== "All") params.set("depotId", depotFilter);
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
 
       const res = await fetch(`/api/dispatcher/users?${params.toString()}`);
       const json = await res.json();
@@ -153,16 +162,14 @@ export default function DispatcherUsersPage() {
       if (json.data.depots) setDepots(json.data.depots);
       if (json.data.outlets) {
         setOutlets(json.data.outlets);
-        if (!newUserOutletId && json.data.outlets.length > 0) {
-          setNewUserOutletId(json.data.outlets[0].outletId);
-        }
+        setNewUserOutletId((prev) => prev || json.data.outlets[0]?.outletId || "");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error connecting to server");
     } finally {
       setIsLoading(false);
     }
-  }, [roleFilter, depotFilter, searchQuery, newUserOutletId]);
+  }, [roleFilter, depotFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchUsers();
@@ -575,12 +582,15 @@ export default function DispatcherUsersPage() {
                   </tr>
                 ) : (
                   users.map((user) => {
-                    const initials = user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase();
+                    const initials =
+                      (user.name || "")
+                        .trim()
+                        .split(/\s+/)
+                        .map((n) => n[0])
+                        .filter(Boolean)
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase() || "U";
                     const colors = getAvatarColors(user.role);
 
                     return (
