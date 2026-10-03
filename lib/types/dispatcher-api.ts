@@ -168,4 +168,5 @@ export interface DispatcherTripDto {
 }
 
 export * from "./dispatcher-fleet";
+export * from "./dispatcher-users";
 
