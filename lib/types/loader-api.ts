@@ -76,6 +76,7 @@ export interface LoaderManifestDto {
   manifestId: string;
   vehicleId: string;
   vehicleType?: string;
+  vehicleTemp?: string;
   driverName: string;
   bayNumber: string;
   departureTime?: string;
@@ -85,6 +86,10 @@ export interface LoaderManifestDto {
     chilledCartons: number;
     ambientCartons: number;
   };
+  totalWeightKg?: number;
+  totalVolumeM3?: number;
+  weightCapKg?: number;
+  volumeCapM3?: number;
 }
 
 export type LoadExceptionType =
@@ -109,9 +114,12 @@ export interface LoaderExceptionDto {
 
 export interface ReportExceptionInput {
   tripId: string;
-  orderId: string;
+  orderId?: string;
   itemId?: string;
-  exceptionType: LoadExceptionType | string;
+  skuCode?: string;
+  sku?: string;
+  exceptionType?: LoadExceptionType | string;
+  reason?: string;
   quantityShort: number;
   notes?: string;
 }
@@ -119,4 +127,21 @@ export interface ReportExceptionInput {
 export interface VerifyManifestInput {
   tripId: string;
   stopIds?: string[];
+}
+
+export interface LoaderWeeklyDayDto {
+  day: string;
+  value: number;
+}
+
+export interface LoaderReportDto {
+  cartonsLoadedThisWeek: number;
+  cartonsGrowthPct: string;
+  shortfallsReported: number;
+  shortfallsDiffText: string;
+  damageReports: number;
+  damageStatusText: string;
+  onTimeDeparturesPct: number;
+  onTimeGrowthText: string;
+  weeklyLoadingData: LoaderWeeklyDayDto[];
 }

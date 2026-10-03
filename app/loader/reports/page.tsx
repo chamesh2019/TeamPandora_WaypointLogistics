@@ -1,12 +1,16 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Header from "../../../components/layout/header";
-import { Panel } from "../../../components/design-system";
+import { Button, Panel } from "../../../components/design-system";
+import type { LoaderReportDto } from "../../../lib/types/loader-api";
 import {
   AlertTriangle,
   BarChart3,
   LayoutGrid,
+  Loader2,
   Package,
+  RefreshCw,
   Truck,
 } from "lucide-react";
 
@@ -18,50 +22,72 @@ const loaderNavItems = [
   { name: "Reports", href: "/loader/reports", icon: BarChart3 },
 ];
 
-const reportCards = [
-  {
-    label: "CARTONS LOADED THIS WEEK",
-    value: "1,842",
-    note: "+4.2%",
-    noteColor: "text-[#10B981]",
-    labelColor: "text-[#4B8EF5]",
-  },
-  {
-    label: "SHORTFALLS REPORTED",
-    value: "7",
-    note: "-2 vs last week",
-    noteColor: "text-[#F59E0B]",
-    labelColor: "text-[#F59E0B]",
-  },
-  {
-    label: "DAMAGE REPORTS",
-    value: "2",
-    note: "All resolved",
-    noteColor: "text-[#10B981]",
-    labelColor: "text-[#7C3AED]",
-  },
-  {
-    label: "ON-TIME DEPARTURES",
-    value: "94%",
-    note: "+1.1%",
-    noteColor: "text-[#10B981]",
-    labelColor: "text-[#10B981]",
-  },
-];
-
-const weeklyData = [
-  { day: "Mon", value: 312 },
-  { day: "Tue", value: 298 },
-  { day: "Wed", value: 334 },
-  { day: "Thu", value: 276 },
-  { day: "Fri", value: 318 },
-  { day: "Sat", value: 244 },
-  { day: "Sun", value: 60 },
-];
-
-const maxValue = Math.max(...weeklyData.map((d) => d.value));
-
 export default function LoaderReportsPage() {
+  const [reports, setReports] = useState<LoaderReportDto | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReports = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await fetch("/api/loader/reports");
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        setReports(json.data);
+      } else {
+        setReports(null);
+        setError(json?.error?.message || "Failed to load reports");
+      }
+    } catch (err) {
+      setReports(null);
+      setError(err instanceof Error ? err.message : "Failed to load reports");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
+
+  const reportCards = [
+    {
+      label: "CARTONS LOADED THIS WEEK",
+      value: reports ? reports.cartonsLoadedThisWeek.toLocaleString() : "0",
+      note: reports ? reports.cartonsGrowthPct : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
+      labelColor: "text-[#4B8EF5]",
+    },
+    {
+      label: "SHORTFALLS REPORTED",
+      value: reports ? String(reports.shortfallsReported) : "0",
+      note: reports ? reports.shortfallsDiffText : "-",
+      noteColor: reports ? "text-[#F59E0B]" : "text-[#747B93]",
+      labelColor: "text-[#F59E0B]",
+    },
+    {
+      label: "DAMAGE REPORTS",
+      value: reports ? String(reports.damageReports) : "0",
+      note: reports ? reports.damageStatusText : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
+      labelColor: "text-[#7C3AED]",
+    },
+    {
+      label: "ON-TIME DEPARTURES",
+      value: reports ? `${reports.onTimeDeparturesPct}%` : "-",
+      note: reports ? reports.onTimeGrowthText : "-",
+      noteColor: reports ? "text-[#10B981]" : "text-[#747B93]",
+      labelColor: "text-[#10B981]",
+    },
+  ];
+
+  const weeklyData = reports?.weeklyLoadingData && reports.weeklyLoadingData.length > 0
+    ? reports.weeklyLoadingData
+    : [];
+
+  const maxValue = weeklyData.length > 0 ? Math.max(...weeklyData.map((d) => d.value), 1) : 1;
+
   return (
     <>
       <Header
@@ -83,9 +109,29 @@ export default function LoaderReportsPage() {
                 Loader performance · Peliyagoda depot
               </p>
             </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={fetchReports}
+              disabled={isLoading}
+              className="px-3 py-2 text-[12px] font-semibold flex items-center gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
 
-          {/* Report Stat Cards (custom - no icons/bars) */}
+          {error && (
+            <div className="mb-5 rounded-[12px] bg-red-50 p-4 border border-red-200 flex items-center justify-between">
+              <span className="text-[12px] font-medium text-red-600">{error}</span>
+              <Button type="button" variant="secondary" onClick={fetchReports} className="text-xs">
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Report Stat Cards */}
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5">
             {reportCards.map((card) => (
               <div
@@ -119,30 +165,40 @@ export default function LoaderReportsPage() {
                 </div>
               </div>
 
-              <div className="px-5 py-8">
-                <div className="flex items-end justify-between gap-4" style={{ height: 200 }}>
-                  {weeklyData.map((item) => {
-                    const pct = (item.value / maxValue) * 100;
-                    return (
-                      <div key={item.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                        {/* Value */}
-                        <span className="text-[11px] font-semibold text-[#7B7B9D]">
-                          {item.value}
-                        </span>
-                        {/* Vertical Bar */}
-                        <div
-                          className="w-full rounded-[4px] bg-[#C7D2FE]"
-                          style={{ height: `${pct}%`, minHeight: 6 }}
-                        />
-                        {/* Day */}
-                        <span className="text-[10px] font-medium text-[#7B7B9D]">
-                          {item.day}
-                        </span>
-                      </div>
-                    );
-                  })}
+              {isLoading && !reports ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#4B8EF5]" />
                 </div>
-              </div>
+              ) : weeklyData.length === 0 ? (
+                <div className="py-16 text-center text-[12px] text-[#7B7B9D]">
+                  No weekly loading data available.
+                </div>
+              ) : (
+                <div className="px-5 py-8">
+                  <div className="flex items-end justify-between gap-4" style={{ height: 200 }}>
+                    {weeklyData.map((item) => {
+                      const pct = Math.max(6, (item.value / maxValue) * 100);
+                      return (
+                        <div key={item.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                          {/* Value */}
+                          <span className="text-[11px] font-semibold text-[#7B7B9D]">
+                            {item.value}
+                          </span>
+                          {/* Vertical Bar */}
+                          <div
+                            className="w-full rounded-[4px] bg-[#C7D2FE] hover:bg-[#818CF8] transition-colors"
+                            style={{ height: `${pct}%`, minHeight: 6 }}
+                          />
+                          {/* Day */}
+                          <span className="text-[10px] font-medium text-[#7B7B9D]">
+                            {item.day}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Panel>
           </div>
         </div>

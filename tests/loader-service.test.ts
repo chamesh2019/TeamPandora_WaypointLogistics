@@ -132,4 +132,21 @@ describe("LoaderService", () => {
       expect.arrayContaining(["TRP-250613-11"])
     );
   });
+
+  it("retrieves loader weekly performance reports", async () => {
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({
+        rows: [{ total_weight: "18000.00", total_trips: 5 }],
+      } as any)
+      .mockResolvedValueOnce({
+        rows: [{ total_exceptions: 4, damage_count: 1 }],
+      } as any);
+
+    const reports = await LoaderService.getReports("PELIYAGODA");
+    expect(reports).toBeDefined();
+    expect(reports.cartonsLoadedThisWeek).toBe(1000);
+    expect(reports.shortfallsReported).toBe(4);
+    expect(reports.damageReports).toBe(1);
+    expect(reports.weeklyLoadingData).toHaveLength(7);
+  });
 });
