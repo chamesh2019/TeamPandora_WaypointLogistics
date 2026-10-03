@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { apiError } from "./response";
 import type { StoreAuthContext } from "../types/store-api";
 import type { LoaderAuthContext } from "../types/loader-api";
+import type { DispatcherAuthContext } from "../types/dispatcher-api";
 
 interface GuardUser {
   id?: string;
@@ -273,5 +274,56 @@ export async function requireLoader(
     username,
     role: role || "loader",
     depotId: depotId.trim().toUpperCase(),
+  };
+}
+
+/**
+ * Validates session and role permissions for Dispatcher API routes.
+ *
+ * 1. Checks Better Auth session from request headers.
+ * 2. Ensures user has 'dispatcher' or 'admin' role.
+ *
+ * Returns DispatcherAuthContext if valid, or a NextResponse error (401 / 403) on failure.
+ */
+export async function requireDispatcher(
+  request: Request
+): Promise<DispatcherAuthContext | NextResponse> {
+  if (!request) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  let sessionRes: GuardSessionResult | null = null;
+  try {
+    sessionRes = (await auth.api.getSession({
+      headers: request.headers,
+    })) as GuardSessionResult | null;
+  } catch {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  if (!sessionRes || !sessionRes.user || !sessionRes.session) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Valid session required", 401);
+  }
+
+  const user = sessionRes.user;
+  const role = user.role;
+
+  if (role !== "dispatcher" && role !== "admin") {
+    return apiError(
+      "FORBIDDEN_ROLE",
+      "Forbidden: Access requires dispatcher role",
+      403
+    );
+  }
+
+  const userId = user.id || user.userId || "";
+  const username = user.username || user.name || user.email || userId;
+  const depotId = (user as GuardUser & { depotId?: string; depot_id?: string }).depotId || (user as GuardUser & { depotId?: string; depot_id?: string }).depot_id || undefined;
+
+  return {
+    userId,
+    username,
+    role,
+    depotId,
   };
 }

@@ -1,3 +1,5 @@
-export default function DispatcherDeferralsPage() {
-  return <div>Dispatcher - Order Deferrals &amp; Root-Cause Analysis</div>;
+import { redirect } from "next/navigation";
+
+export default function DispatcherDeferralsRedirect() {
+  redirect("/dispatcher/allocation");
 }
