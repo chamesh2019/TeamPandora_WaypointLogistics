@@ -74,8 +74,13 @@ export async function POST(request: Request) {
         // 3. Insert trips and trip stops
         for (let i = 0; i < trips.length; i++) {
           const trip = trips[i];
-          const tripId = `TRIP-${plan_id}-${i + 1}`;
-          const brandId = trip.brand.toUpperCase();
+          const tripId =
+            (trip as any).trip_id ||
+            (trip as any).id ||
+            (trip.vehicle_id
+              ? `TRIP-${plan_date.replace(/-/g, '')}-${trip.vehicle_id}-T${trip.trip_number || (i + 1)}`
+              : `TRIP-${plan_id}-${i + 1}`);
+          const brandId = (trip.brand || 'FRESH').toUpperCase();
           const maxBudget = brandId === 'FRESH' ? 270 : 480;
           const departureTime = brandId === 'FRESH' ? '04:00:00' : '08:30:00';
           const returnMinutes = Math.min(trip.duration_minutes || 60, maxBudget);
@@ -102,23 +107,33 @@ export async function POST(request: Request) {
               total_trip_minutes, max_time_budget_min, planned_departure_time,
               planned_return_time, estimated_fuel_liters
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PLANNED', $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-            ON CONFLICT (trip_id) DO NOTHING`,
+            ON CONFLICT (trip_id) DO UPDATE SET
+              plan_id = EXCLUDED.plan_id,
+              vehicle_id = EXCLUDED.vehicle_id,
+              trip_number = EXCLUDED.trip_number,
+              brand_id = EXCLUDED.brand_id,
+              district_id = EXCLUDED.district_id,
+              depot_id = EXCLUDED.depot_id,
+              driver_id = EXCLUDED.driver_id,
+              total_orders_count = EXCLUDED.total_orders_count,
+              total_weight_kg = EXCLUDED.total_weight_kg,
+              total_volume_m3 = EXCLUDED.total_volume_m3`,
             [
               tripId,
               plan_id,
               trip.vehicle_id,
-              trip.trip_number,
+              trip.trip_number || (i + 1),
               brandId,
               trip.district,
               trip.depot,
               driverId,
-              trip.orders.length,
-              trip.total_weight_kg,
-              trip.total_volume_m3,
+              trip.orders ? trip.orders.length : (trip.stops ? trip.stops.length : 0),
+              trip.total_weight_kg || 0,
+              trip.total_volume_m3 || 0,
               20, // outbound
               10, // inter-stop
               trip.duration_minutes - 30 > 0 ? trip.duration_minutes - 30 : 0,
-              trip.duration_minutes,
+              trip.duration_minutes || 60,
               maxBudget,
               departureTime,
               returnTime,
@@ -126,8 +141,22 @@ export async function POST(request: Request) {
             ]
           );
 
+          // Clear existing stops for this trip or any order assigned to this trip to avoid duplicate order_id violations
+          const tripOrderIds = (trip.stops || [])
+            .map((s: any) => s.order_id)
+            .filter(Boolean);
+
+          if (tripOrderIds.length > 0) {
+            await client.query(
+              `DELETE FROM trip_stops WHERE trip_id = $1 OR order_id = ANY($2::varchar[])`,
+              [tripId, tripOrderIds]
+            );
+          } else {
+            await client.query(`DELETE FROM trip_stops WHERE trip_id = $1`, [tripId]);
+          }
+
           // Insert stops with reverse loading sequence
-          const totalStops = trip.stops.length;
+          const totalStops = trip.stops ? trip.stops.length : 0;
           for (let sIdx = 0; sIdx < totalStops; sIdx++) {
             const stop = trip.stops[sIdx];
             const stopId = `STOP-${tripId}-${sIdx + 1}`;
@@ -137,7 +166,13 @@ export async function POST(request: Request) {
               `INSERT INTO trip_stops (
                 stop_id, trip_id, order_id, outlet_id, stop_sequence, load_sequence, planned_arrival_time, status
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING')
-              ON CONFLICT (stop_id) DO NOTHING`,
+              ON CONFLICT (stop_id) DO UPDATE SET
+                trip_id = EXCLUDED.trip_id,
+                order_id = EXCLUDED.order_id,
+                outlet_id = EXCLUDED.outlet_id,
+                stop_sequence = EXCLUDED.stop_sequence,
+                load_sequence = EXCLUDED.load_sequence,
+                status = EXCLUDED.status`,
               [
                 stopId,
                 tripId,

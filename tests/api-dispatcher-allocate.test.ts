@@ -89,6 +89,37 @@ describe('POST /api/dispatcher/plans/publish', () => {
     expect(body.plan_id).toBe('PLAN-20261001-TEST');
   });
 
+  it('publishes plan with trip stops where order was previously committed without unique constraint violation', async () => {
+    const req = new Request('http://localhost:3000/api/dispatcher/plans/publish', {
+      method: 'POST',
+      body: JSON.stringify({
+        plan_id: 'PLAN-20261003-PELIYAGODA',
+        plan_date: '2026-10-03',
+        depot_id: 'PELIYAGODA',
+        trips: [
+          {
+            vehicle_id: 'VEH001',
+            trip_number: 1,
+            brand: 'Fresh',
+            district: 'Colombo',
+            depot: 'PELIYAGODA',
+            total_weight_kg: 850,
+            total_volume_m3: 4.5,
+            duration_minutes: 120,
+            orders: [{ order_id: 'ORD-20261001-001', brand: 'Fresh', district: 'Colombo', depot: 'PELIYAGODA', weight: 850, volume: 4.5 }],
+            stops: [{ order_id: 'ORD-20261001-001', outlet_id: 'OUT001' }],
+          },
+        ],
+        deferred: [],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await publishRoute(req);
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
   it('rejects publishing when plan_id or plan_date is missing', async () => {
     const req = new Request('http://localhost:3000/api/dispatcher/plans/publish', {
       method: 'POST',

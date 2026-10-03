@@ -150,6 +150,7 @@ export default function DispatcherTripPlanningPage() {
           depot_id: selectedTrip.depot || "PELIYAGODA",
           trips: [
             {
+              trip_id: selectedTrip.tripId || selectedTrip.id,
               vehicle_id: selectedTrip.vehicleId,
               trip_number: selectedTrip.tripNumber,
               brand: selectedTrip.brand,
