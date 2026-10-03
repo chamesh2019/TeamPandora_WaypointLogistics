@@ -4,7 +4,6 @@ import {
   GitFork,
   Route,
   Truck,
-  Radio,
   AlertTriangle,
   Users,
   BarChart3,
@@ -38,11 +37,6 @@ export const dispatcherNavItems: HeaderNavItem[] = [
     name: "Fleet",
     href: "/dispatcher/fleet",
     icon: Truck,
-  },
-  {
-    name: "Live Routes",
-    href: "/dispatcher/live-routes",
-    icon: Radio,
   },
   {
     name: "Exceptions",

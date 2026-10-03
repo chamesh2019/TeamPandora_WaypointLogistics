@@ -841,13 +841,13 @@ export default function DispatcherPage() {
               </div>
             </div>
 
-            {/* Live Map Footer */}
+            {/* Fleet Management Link Footer */}
             <div className="pt-3 border-t border-black/[0.04] text-center mt-3">
               <Link
-                href="/dispatcher/live-routes"
+                href="/dispatcher/fleet"
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"
               >
-                <span>Open live routes</span>
+                <span>View fleet management</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>

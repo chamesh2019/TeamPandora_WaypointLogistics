@@ -12,8 +12,8 @@ describe("Dispatcher Navigation Refinement", () => {
     expect(resolveActiveHref("/dispatcher/orders/sub-order-1", dispatcherNavItems)).toBe("/dispatcher/orders");
     expect(resolveActiveHref("/dispatcher/unknown", dispatcherNavItems)).toBe("/dispatcher");
   });
-  it("defines all 10 dispatcher navigation items with proper hrefs, icons, and badge counts", () => {
-    expect(dispatcherNavItems).toHaveLength(10);
+  it("defines all 9 dispatcher navigation items with proper hrefs, icons, and badge counts", () => {
+    expect(dispatcherNavItems).toHaveLength(9);
 
     const expected = [
       { name: "Overview", href: "/dispatcher" },
@@ -21,7 +21,6 @@ describe("Dispatcher Navigation Refinement", () => {
       { name: "Allocation", href: "/dispatcher/allocation" },
       { name: "Trip planning", href: "/dispatcher/trip-planning" },
       { name: "Fleet", href: "/dispatcher/fleet" },
-      { name: "Live Routes", href: "/dispatcher/live-routes" },
       { name: "Exceptions", href: "/dispatcher/exceptions", count: 3 },
       { name: "Users", href: "/dispatcher/users" },
       { name: "Reports", href: "/dispatcher/reports" },
@@ -48,14 +47,13 @@ describe("Dispatcher Navigation Refinement", () => {
     expect(content).toContain('homeHref="/dispatcher"');
   });
 
-  it("ensures none of the 10 dispatcher pages contain the legacy custom inlined header", () => {
+  it("ensures none of the 9 dispatcher pages contain the legacy custom inlined header", () => {
     const pages = [
       "app/dispatcher/page.tsx",
       "app/dispatcher/orders/page.tsx",
       "app/dispatcher/allocation/page.tsx",
       "app/dispatcher/trip-planning/page.tsx",
       "app/dispatcher/fleet/page.tsx",
-      "app/dispatcher/live-routes/page.tsx",
       "app/dispatcher/exceptions/page.tsx",
       "app/dispatcher/users/page.tsx",
       "app/dispatcher/reports/page.tsx",
