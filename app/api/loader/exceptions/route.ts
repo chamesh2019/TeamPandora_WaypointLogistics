@@ -41,12 +41,22 @@ export async function POST(request: Request) {
     return apiError("INVALID_JSON", "Invalid request body JSON", 400);
   }
 
-  const { tripId, orderId, exceptionType, quantityShort, itemId, notes } = body || {};
+  const {
+    tripId,
+    orderId,
+    exceptionType,
+    quantityShort,
+    itemId,
+    sku,
+    skuCode,
+    reason,
+    notes,
+  } = body || {};
 
-  if (!tripId || !orderId || !exceptionType) {
+  if (!tripId || (!orderId && !sku && !skuCode) || (!exceptionType && !reason)) {
     return apiError(
       "MISSING_REQUIRED_FIELDS",
-      "tripId, orderId, and exceptionType are required",
+      "tripId, orderId (or sku), and exceptionType (or reason) are required",
       400
     );
   }
@@ -66,7 +76,10 @@ export async function POST(request: Request) {
         tripId,
         orderId,
         itemId,
-        exceptionType,
+        skuCode: skuCode || sku,
+        sku: sku || skuCode,
+        exceptionType: exceptionType || reason,
+        reason,
         quantityShort: qty,
         notes,
       },
