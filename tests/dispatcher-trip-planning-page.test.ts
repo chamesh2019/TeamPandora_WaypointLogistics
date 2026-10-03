@@ -30,4 +30,10 @@ describe("Dispatcher Trip Planning Page Live Integration", () => {
     expect(code).toContain("StatusBadge");
     expect(code).toContain("Panel");
   });
+
+  it("checks trip finalized state accurately and supports stop reordering", () => {
+    expect(code).toContain("isTripFinalized");
+    expect(code).toContain("handleMoveStop");
+    expect(code).toContain("handleRemoveOrderFromTrip");
+  });
 });

@@ -29,6 +29,12 @@ import type {
   AllocationDriverDto,
 } from "../../../lib/types/dispatcher-api";
 
+function isTripFinalized(status?: string): boolean {
+  if (!status) return false;
+  const s = status.toLowerCase();
+  return s === "finalized" || s === "published";
+}
+
 export default function DispatcherTripPlanningPage() {
   const [trips, setTrips] = useState<DispatcherTripDto[]>([]);
   const [unassignedOrders, setUnassignedOrders] = useState<AllocationOrderItemDto[]>([]);
@@ -453,7 +459,7 @@ export default function DispatcherTripPlanningPage() {
               {isLoading ? "—" : trips.length}
             </div>
             <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-              {isLoading ? "loading..." : `${trips.filter((t) => t.status === "Finalized").length} finalized`}
+              {isLoading ? "loading..." : `${trips.filter((t) => isTripFinalized(t.status)).length} finalized`}
             </div>
           </Panel>
 
@@ -519,7 +525,7 @@ export default function DispatcherTripPlanningPage() {
                   Planned trips ({trips.length})
                 </h2>
                 <span className="text-xs text-slate-400">
-                  {trips.filter((t) => t.status === "Finalized").length} published
+                  {trips.filter((t) => isTripFinalized(t.status)).length} published
                 </span>
               </div>
 
@@ -617,7 +623,7 @@ export default function DispatcherTripPlanningPage() {
                         <h2 className="text-base font-bold text-slate-900 font-mono tracking-tight">
                           {selectedTrip.id}
                         </h2>
-                        {selectedTrip.status === "Finalized" && (
+                        {isTripFinalized(selectedTrip.status) && (
                           <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Check className="w-3 h-3" /> Published &amp; Locked
                           </span>
@@ -630,7 +636,7 @@ export default function DispatcherTripPlanningPage() {
                     </div>
 
                     {/* Finalize Button */}
-                    {selectedTrip.status !== "Finalized" ? (
+                    {!isTripFinalized(selectedTrip.status) ? (
                       <Button
                         variant="primary"
                         size="compact"
@@ -704,7 +710,7 @@ export default function DispatcherTripPlanningPage() {
                             className="py-3 flex items-center justify-between hover:bg-slate-50/60 px-2 rounded transition-colors text-xs"
                           >
                             <div className="flex items-center gap-2.5">
-                              {selectedTrip.status !== "Finalized" && (
+                              {!isTripFinalized(selectedTrip.status) && (
                                 <div className="flex flex-col items-center">
                                   <button
                                     type="button"
@@ -744,7 +750,7 @@ export default function DispatcherTripPlanningPage() {
                                 <div>{ord.weightKg} kg · {ord.volumeM3} m³</div>
                                 <div className="text-[10px] text-slate-400">{ord.itemsCount} units</div>
                               </div>
-                              {selectedTrip.status !== "Finalized" && (
+                              {!isTripFinalized(selectedTrip.status) && (
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveOrderFromTrip(selectedTrip.id, ord.id)}
@@ -761,7 +767,7 @@ export default function DispatcherTripPlanningPage() {
                     </div>
 
                     {/* Bottom Action: + Add orders */}
-                    {selectedTrip.status !== "Finalized" && unassignedOrders.length > 0 && (
+                    {!isTripFinalized(selectedTrip.status) && unassignedOrders.length > 0 && (
                       <Button
                         variant="secondary"
                         size="full"

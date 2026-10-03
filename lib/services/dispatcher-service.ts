@@ -778,6 +778,8 @@ export class DispatcherService {
           t.total_orders_count,
           t.total_weight_kg,
           t.total_volume_m3,
+          ap.status as plan_status,
+          ap.published_at,
           v.volume_cap_m3,
           v.weight_cap_kg,
           u.full_name as driver_name
@@ -823,11 +825,22 @@ export class DispatcherService {
           loadSequence: s.load_sequence,
         }));
 
+        const isPlanPublished =
+          (r.plan_status || "").toUpperCase() === "PUBLISHED" || Boolean(r.published_at);
+        let tripStatus: DispatcherTripDto["status"] = "Draft";
+        if (["LOADING", "LOADED", "IN_TRANSIT", "COMPLETED", "CANCELLED"].includes(r.status)) {
+          tripStatus = r.status;
+        } else if (isPlanPublished || (r.status || "").toLowerCase() === "finalized") {
+          tripStatus = "Finalized";
+        } else {
+          tripStatus = "Draft";
+        }
+
         tripDtos.push({
           id: r.trip_id,
           tripId: r.trip_id,
           planId: r.plan_id,
-          status: r.status,
+          status: tripStatus,
           tripNumber: r.trip_number,
           currentVol: Number(r.total_volume_m3 || 0),
           maxVol: Number(r.volume_cap_m3 || 24),
