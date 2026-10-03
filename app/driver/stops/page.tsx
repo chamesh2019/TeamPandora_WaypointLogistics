@@ -14,7 +14,7 @@ import {
 } from "../../../components/design-system";
 import { SyncBadge, SyncBadgeToggle } from "../../../components/driver/sync-badge";
 import { DriverBadge } from "../../../components/driver/driver-badge";
-import { PageHeader } from "../../../components/layout/page-header";
+import { DriverPageHeader } from "../../../components/driver/driver-page-header";
 import type { StopStatus } from "../../../components/driver/stop-number-cell";
 
 const tripDetails = {
@@ -97,7 +97,7 @@ export default function DriverCurrentStopPage() {
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Page header */}
-        <PageHeader
+        <DriverPageHeader
           title={`Stop ${currentStop.n} of ${stops.length} · ${currentStop.store.split(" — ")[0].split(" · ")[0]}`}
           subtitle={`Trip ${tripDetails.tripId} · Vehicle ${tripDetails.vehicle}`}
           roleBadge={
@@ -108,7 +108,7 @@ export default function DriverCurrentStopPage() {
         >
           <SyncBadge syncing={syncing} onClick={triggerSync} />
           <DriverBadge variant={heroVariant} label={heroLabel} showDot />
-        </PageHeader>
+        </DriverPageHeader>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

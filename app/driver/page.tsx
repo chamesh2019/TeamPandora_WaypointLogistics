@@ -12,7 +12,7 @@ import {
 import { SyncBadgeToggle } from "../../components/driver/sync-badge";
 import { StopNumberCell } from "../../components/driver/stop-number-cell";
 import { DriverBadge } from "../../components/driver/driver-badge";
-import { PageHeader } from "../../components/layout/page-header";
+import { DriverPageHeader } from "../../components/driver/driver-page-header";
 import type { StopStatus } from "../../components/driver/stop-number-cell";
 
 interface Stop {
@@ -96,7 +96,7 @@ export default function DriverPage() {
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Page header */}
-        <PageHeader
+        <DriverPageHeader
           title={`${greeting()}, ${first}`}
           subtitle={`Trip ${tripDetails.tripId} · Vehicle ${tripDetails.vehicle} · ${tripDetails.depot} depot`}
           roleBadge={
@@ -109,7 +109,7 @@ export default function DriverPage() {
           <Button variant="secondary" onClick={() => notify("Route overview shared with control tower.")}>
             <Map className="w-3.5 h-3.5" /> View map
           </Button>
-        </PageHeader>
+        </DriverPageHeader>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

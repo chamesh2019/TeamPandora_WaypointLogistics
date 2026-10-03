@@ -12,7 +12,7 @@ import {
 import { SyncBadge } from "../../../components/driver/sync-badge";
 import { StopNumberCell } from "../../../components/driver/stop-number-cell";
 import { DriverBadge } from "../../../components/driver/driver-badge";
-import { PageHeader } from "../../../components/layout/page-header";
+import { DriverPageHeader } from "../../../components/driver/driver-page-header";
 
 import type { StopStatus } from "../../../components/driver/stop-number-cell";
 
@@ -90,7 +90,7 @@ export default function DriverPodPage() {
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Page header */}
-        <PageHeader
+        <DriverPageHeader
           title="Completed deliveries"
           subtitle={`Trip ${tripDetails.tripId} · ${completedCount} of ${stops.length} stops done`}
           roleBadge={
@@ -100,7 +100,7 @@ export default function DriverPodPage() {
           }
         >
           <SyncBadge syncedLabel={`${completedCount} synced`} />
-        </PageHeader>
+        </DriverPageHeader>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
