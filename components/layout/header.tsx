@@ -135,11 +135,13 @@ export default function Header({
   const displayInitials = getInitials(displayName) || userInitials || "?";
 
   const activeHref = useMemo(() => {
-    const activeItem = navItems.find((item) =>
-      matchesHref(pathname, item.href),
-    );
+    const matchingItems = navItems.filter((item) => matchesHref(pathname, item.href));
+    
+    const activeItem = matchingItems.sort((a, b) => b.href.length - a.href.length)[0];
+    
     return activeHrefOverride ?? activeItem?.href;
   }, [activeHrefOverride, navItems, pathname]);
+
 
   const navTabs = navItems.map((item) => ({
     id: item.href,
