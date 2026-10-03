@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
 export const ROLE_PERMITTED_ROUTES: Record<string, string[]> = {
-  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions"],
+  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions", "/allocation", "/trip-planning", "/live-routes", "/users", "/reports", "/forecast"],
   loader: ["/loader", "/dock", "/loading", "/manifest"],
   driver: ["/driver", "/route", "/pod"],
   store_manager: ["/store", "/receiving", "/disputes"],
