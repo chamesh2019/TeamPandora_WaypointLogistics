@@ -14,7 +14,9 @@ export type FigmaBadgeStatus =
   | "substituted"
   | "active"
   | "unsent"
-  | "viewed";
+  | "viewed"
+  | "finalized"
+  | "published";
 
 export interface StatusBadgeProps {
   status: FigmaBadgeStatus | string;
@@ -49,6 +51,8 @@ export function StatusBadge({ status, className, showDot = true }: StatusBadgePr
       break;
     case "delivered":
     case "resolved":
+    case "finalized":
+    case "published":
       colorClasses = "bg-[rgba(16,185,129,.12)] text-[#10B981] border-emerald-500/20";
       dotColor = "bg-[#10B981]";
       break;

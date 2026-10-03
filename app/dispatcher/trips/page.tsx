@@ -1,3 +1,5 @@
-export default function DispatcherTripsPage() {
-  return <div>Dispatcher - Trip Creation &amp; Vehicle Allocation</div>;
+import { redirect } from "next/navigation";
+
+export default function DispatcherTripsRedirect() {
+  redirect("/dispatcher/trip-planning");
 }

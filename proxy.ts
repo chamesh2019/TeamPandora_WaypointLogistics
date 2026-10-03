@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 export const ROLE_PERMITTED_ROUTES: Record<string, string[]> = {
-  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions", "/profile"],
+  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions", "/allocation", "/trip-planning", "/live-routes", "/users", "/reports", "/forecast", "/profile"],
   loader: ["/loader", "/dock", "/loading", "/manifest", "/profile"],
   driver: ["/driver", "/route", "/pod", "/profile"],
   store_manager: ["/store", "/receiving", "/disputes", "/profile"],

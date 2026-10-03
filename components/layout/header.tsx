@@ -55,6 +55,27 @@ function matchesHref(pathname: string | null, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+export function resolveActiveHref(
+  pathname: string | null,
+  navItems: HeaderNavItem[],
+  activeHrefOverride?: string,
+): string | undefined {
+  if (activeHrefOverride) {
+    return activeHrefOverride;
+  }
+  if (!pathname) {
+    return navItems[0]?.href;
+  }
+  const exactMatch = navItems.find((item) => pathname === item.href);
+  if (exactMatch) {
+    return exactMatch.href;
+  }
+  const matchingItems = navItems
+    .filter((item) => matchesHref(pathname, item.href))
+    .sort((a, b) => b.href.length - a.href.length);
+  return matchingItems[0]?.href ?? navItems[0]?.href;
+}
+
 function formatRoleLabel(role?: string | null) {
   if (!role) {
     return "Role";
@@ -135,10 +156,7 @@ export default function Header({
   const displayInitials = getInitials(displayName) || userInitials || "?";
 
   const activeHref = useMemo(() => {
-    const activeItem = navItems.find((item) =>
-      matchesHref(pathname, item.href),
-    );
-    return activeHrefOverride ?? activeItem?.href;
+    return resolveActiveHref(pathname, navItems, activeHrefOverride);
   }, [activeHrefOverride, navItems, pathname]);
 
   const navTabs = navItems.map((item) => ({
