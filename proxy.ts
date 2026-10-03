@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 export const ROLE_PERMITTED_ROUTES: Record<string, string[]> = {
-  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions", "/allocation", "/trip-planning", "/live-routes", "/users", "/reports", "/forecast"],
-  loader: ["/loader", "/dock", "/loading", "/manifest"],
-  driver: ["/driver", "/route", "/pod"],
-  store_manager: ["/store", "/receiving", "/disputes"],
+  dispatcher: ["/dispatcher", "/control-tower", "/fleet", "/trips", "/orders", "/exceptions", "/allocation", "/trip-planning", "/live-routes", "/users", "/reports", "/forecast", "/profile"],
+  loader: ["/loader", "/dock", "/loading", "/manifest", "/profile"],
+  driver: ["/driver", "/route", "/pod", "/profile"],
+  store_manager: ["/store", "/receiving", "/disputes", "/profile"],
 };
 
 export function isPublicPath(pathname: string): boolean {
