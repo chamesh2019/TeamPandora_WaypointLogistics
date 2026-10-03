@@ -4,6 +4,7 @@ import { GET as getTrips } from "@/app/api/loader/trips/route";
 import { GET as getManifest } from "@/app/api/loader/manifests/[id]/route";
 import { POST as verifyManifest } from "@/app/api/loader/manifests/[id]/verify/route";
 import { GET as getExceptions, POST as reportException } from "@/app/api/loader/exceptions/route";
+import { GET as getReports } from "@/app/api/loader/reports/route";
 import { requireLoader } from "@/lib/api/guard";
 import { LoaderService } from "@/lib/services/loader-service";
 
@@ -19,6 +20,7 @@ vi.mock("@/lib/services/loader-service", () => ({
     verifyManifest: vi.fn(),
     getExceptions: vi.fn(),
     reportException: vi.fn(),
+    getReports: vi.fn(),
   },
 }));
 
@@ -216,5 +218,26 @@ describe("Loader REST API Routes", () => {
       { params: Promise.resolve({ id: "TRP-KANDY-01" }) }
     );
     expect(res.status).toBe(403);
+  });
+
+  it("GET /api/loader/reports returns 200 with reports summary and trend data", async () => {
+    vi.mocked(LoaderService.getReports).mockResolvedValueOnce({
+      cartonsLoadedThisWeek: 1842,
+      cartonsGrowthPct: "+4.2%",
+      shortfallsReported: 7,
+      shortfallsDiffText: "-2 vs last week",
+      damageReports: 2,
+      damageStatusText: "All resolved",
+      onTimeDeparturesPct: 94,
+      onTimeGrowthText: "+1.1%",
+      weeklyLoadingData: [{ day: "Mon", value: 312 }],
+    });
+
+    const res = await getReports(new Request("http://localhost:3000/api/loader/reports"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.cartonsLoadedThisWeek).toBe(1842);
+    expect(body.data.weeklyLoadingData).toHaveLength(1);
   });
 });
