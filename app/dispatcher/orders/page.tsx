@@ -1,143 +1,45 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import Link from "next/link";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  LayoutDashboard,
-  ClipboardList,
-  GitFork,
-  Route,
-  Truck,
-  Radio,
-  AlertTriangle,
-  Users,
-  BarChart3,
-  Sparkles,
-  Search,
-  Clock,
-  Bell,
-  Settings,
   Download,
   Plus,
   Lock,
   Eye,
   X,
   CheckCircle2,
-  Layers,
+  Clock,
+  Search,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
+import { Button, BrandTag, StatusBadge, FilterTabs } from "@/components/design-system";
+import type { TabItem } from "@/components/design-system";
+import { getCutoffInfo } from "@/lib/utils/cutoff";
+import type {
+  DispatcherOrderDto,
+  DispatcherOrdersSummaryDto,
+  DispatcherOrderStatus,
+} from "@/lib/types/dispatcher-api";
 
-export type OrderStatus = "Pending" | "Planned" | "Dispatched" | "Delivered";
-
-export interface OrderItem {
-  id: string;
-  store: string;
-  brand: "Fresh" | "Style" | "Tech";
-  district: string;
-  items: number;
-  volume: string;
-  trip: string;
-  placed: string;
-  status: OrderStatus;
-}
-
-const INITIAL_ORDERS: OrderItem[] = [
-  {
-    id: "ORD-250613-2841",
-    store: "Nugegoda Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    items: 48,
-    volume: "8.4 m³",
-    trip: "TRP-250613-11",
-    placed: "13 Jun 09:22",
-    status: "Planned",
-  },
-  {
-    id: "ORD-250613-2839",
-    store: "Dehiwala Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    items: 36,
-    volume: "6.1 m³",
-    trip: "TRP-250613-11",
-    placed: "13 Jun 08:45",
-    status: "Planned",
-  },
-  {
-    id: "ORD-250613-2835",
-    store: "Bambalapitiya Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    items: 24,
-    volume: "4.2 m³",
-    trip: "—",
-    placed: "13 Jun 08:12",
-    status: "Pending",
-  },
-  {
-    id: "ORD-250613-2820",
-    store: "Kandy Central Fresh",
-    brand: "Fresh",
-    district: "Kandy",
-    items: 52,
-    volume: "9.1 m³",
-    trip: "TRP-250613-07",
-    placed: "13 Jun 07:00",
-    status: "Dispatched",
-  },
-  {
-    id: "ORD-250613-2818",
-    store: "Peradeniya Style",
-    brand: "Style",
-    district: "Kandy",
-    items: 18,
-    volume: "3.2 m³",
-    trip: "TRP-250613-07",
-    placed: "13 Jun 07:00",
-    status: "Dispatched",
-  },
-  {
-    id: "ORD-250612-2804",
-    store: "Maradana Tech",
-    brand: "Tech",
-    district: "Colombo",
-    items: 8,
-    volume: "1.8 m³",
-    trip: "TRP-250612-09",
-    placed: "12 Jun 14:30",
-    status: "Delivered",
-  },
-  {
-    id: "ORD-250612-2799",
-    store: "Kurunegala Style",
-    brand: "Style",
-    district: "NWP",
-    items: 31,
-    volume: "5.5 m³",
-    trip: "TRP-250612-06",
-    placed: "12 Jun 13:55",
-    status: "Delivered",
-  },
-  {
-    id: "ORD-250613-2845",
-    store: "Wellawatte Fresh",
-    brand: "Fresh",
-    district: "Colombo",
-    items: 20,
-    volume: "3.6 m³",
-    trip: "—",
-    placed: "13 Jun 11:04",
-    status: "Pending",
-  },
+const STATUS_TABS: TabItem[] = [
+  { id: "All", label: "All" },
+  { id: "Pending", label: "Pending" },
+  { id: "Planned", label: "Planned" },
+  { id: "Dispatched", label: "Dispatched" },
+  { id: "Delivered", label: "Delivered" },
 ];
 
 export default function DispatcherOrdersPage() {
-  const [tableSearch, setTableSearch] = useState("");
+  const [orders, setOrders] = useState<DispatcherOrderDto[]>([]);
+  const [summary, setSummary] = useState<DispatcherOrdersSummaryDto | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("All");
-  const [orders, setOrders] = useState<OrderItem[]>(INITIAL_ORDERS);
-  const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
-  const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
-  const [cutoffLocked, setCutoffLocked] = useState(false);
+  const [tableSearch, setTableSearch] = useState<string>("");
+  const [selectedOrder, setSelectedOrder] = useState<DispatcherOrderDto | null>(null);
+  const [cutoffLocked, setCutoffLocked] = useState<boolean>(false);
+  const [isNewOrderOpen, setIsNewOrderOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // New order form state
@@ -152,14 +54,63 @@ export default function DispatcherOrdersPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter && statusFilter !== "All") {
+        params.set("status", statusFilter);
+      }
+      if (tableSearch.trim()) {
+        params.set("search", tableSearch.trim());
+      }
+
+      const res = await fetch(`/api/dispatcher/orders?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load orders (HTTP ${res.status})`);
+      }
+      const json = await res.json();
+      if (json.success && json.data) {
+        setOrders(json.data.orders || []);
+        if (json.data.summary) {
+          setSummary(json.data.summary);
+        }
+      } else {
+        throw new Error(json.error?.message || "Failed to load orders");
+      }
+    } catch (err) {
+      console.error("Error loading dispatcher orders:", err);
+      setError(err instanceof Error ? err.message : "Error loading orders");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [statusFilter, tableSearch]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
   const handleExportCSV = () => {
-    const headers = ["Order ID", "Store", "Brand", "District", "Items", "Volume", "Trip", "Placed", "Status"];
-    const rows = orders.map((o) => [
+    const headers = [
+      "Order ID",
+      "Store",
+      "Brand",
+      "District",
+      "Items",
+      "Weight",
+      "Volume",
+      "Trip",
+      "Placed",
+      "Status",
+    ];
+    const rows = filteredOrders.map((o) => [
       o.id,
       `"${o.store}"`,
       o.brand,
       o.district,
       o.items,
+      `"${o.weight}"`,
       `"${o.volume}"`,
       o.trip,
       `"${o.placed}"`,
@@ -171,7 +122,10 @@ export default function DispatcherOrdersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `waypoint-orders-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      "download",
+      `waypoint-orders-${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -190,26 +144,42 @@ export default function DispatcherOrdersPage() {
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
     const newId = `ORD-250613-${Math.floor(2850 + Math.random() * 50)}`;
-    const newObj: OrderItem = {
+    const newObj: DispatcherOrderDto = {
       id: newId,
+      orderId: newId,
+      outletId: "OUT001",
       store: newOrderStore,
       brand: newOrderBrand,
       district: newOrderDistrict,
       items: Number(newOrderItems),
+      weight: "500 kg",
+      weightKg: 500,
       volume: newOrderVolume,
+      volumeM3: parseFloat(newOrderVolume) || 3.5,
       trip: "—",
-      placed: "13 Jun " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      tripId: null,
+      placed:
+        "13 Jun " +
+        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      createdAt: new Date().toISOString(),
+      deliveryDate: new Date().toISOString().slice(0, 10),
+      isAfterCutoff: false,
+      priorityScore: 0,
       status: "Pending",
+      lifecycleStatus: "SUBMITTED",
+      tempRequirement: newOrderBrand === "Fresh" ? "chilled" : "ambient",
     };
     setOrders([newObj, ...orders]);
     setIsNewOrderOpen(false);
     triggerToast(`Order ${newId} created successfully`);
   };
 
-  // Filtered orders
+  // Filtered orders fallback in client if search or filter changes locally
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      const matchesStatus = statusFilter === "All" || o.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "All" ||
+        o.status.toLowerCase() === statusFilter.toLowerCase();
       const q = tableSearch.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -220,6 +190,17 @@ export default function DispatcherOrdersPage() {
       return matchesStatus && matchesSearch;
     });
   }, [orders, statusFilter, tableSearch]);
+
+  const cutoff = summary?.cutoffInfo ?? getCutoffInfo();
+  const preCutoffCount =
+    summary?.preCutoffCount ?? orders.filter((o) => !o.isAfterCutoff).length;
+  const postCutoffCount =
+    summary?.postCutoffCount ?? orders.filter((o) => o.isAfterCutoff).length;
+  const confirmedCount =
+    summary?.confirmedCount ??
+    orders.filter((o) =>
+      ["Confirmed", "Planned", "Dispatched", "Delivered"].includes(o.status)
+    ).length;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -239,25 +220,38 @@ export default function DispatcherOrdersPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Refresh button */}
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={loadOrders}
+              disabled={isLoading}
+              title="Refresh order queue"
+              className="flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+
             {/* Export CSV button */}
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[10px] bg-white border border-black/[0.08] shadow-[0_1px_4px_rgba(0,0,0,0.04)] hover:bg-slate-50 text-xs font-semibold text-[#0F1020] transition-all cursor-pointer"
+              className="flex items-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5 text-[#0F1020]" />
               <span>Export CSV</span>
-            </button>
+            </Button>
 
             {/* + New order button */}
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => setIsNewOrderOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-[10px] bg-[#F5C542] hover:bg-[#D4A200] text-[#0F1928] text-xs font-bold shadow-[0_2px_10px_rgba(245,197,66,0.3)] hover:shadow-[0_4px_14px_rgba(245,197,66,0.4)] transition-all cursor-pointer"
+              className="flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New order</span>
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -272,7 +266,7 @@ export default function DispatcherOrdersPage() {
             </div>
             <div>
               <h2 className="text-xs sm:text-sm font-bold text-[#0F1020]">
-                Order cutoff: 16:00 today - 2h 14m remaining
+                Order cutoff: 16:00 today - {cutoff.formattedTimeLeft}
               </h2>
               <p className="text-[11px] text-[#7B7B9D] mt-0.5">
                 After cutoff: confirmed orders move to planning queue · late orders roll to tomorrow's run
@@ -288,7 +282,7 @@ export default function DispatcherOrdersPage() {
                 PRE-CUTOFF ORDERS
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#10B981] leading-tight mt-0.5">
-                8
+                {preCutoffCount}
               </div>
               <div className="text-[9px] text-[#7B7B9D] mt-0.5">eligible for today</div>
             </div>
@@ -299,7 +293,7 @@ export default function DispatcherOrdersPage() {
                 POST-CUTOFF ORDERS
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#F59E0B] leading-tight mt-0.5">
-                0
+                {postCutoffCount}
               </div>
               <div className="text-[9px] text-[#7B7B9D] mt-0.5">roll to tomorrow</div>
             </div>
@@ -310,7 +304,7 @@ export default function DispatcherOrdersPage() {
                 CONFIRMED TOTAL
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#4B8EF5] leading-tight mt-0.5">
-                6
+                {confirmedCount}
               </div>
               <div className="text-[9px] text-[#7B7B9D] mt-0.5">planned or dispatched</div>
             </div>
@@ -318,20 +312,29 @@ export default function DispatcherOrdersPage() {
 
           {/* Right: Lock cutoff button */}
           <div className="flex items-center">
-            <button
-              type="button"
+            <Button
+              variant={cutoffLocked ? "danger" : "primary"}
               onClick={handleLockCutoff}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-[10px] text-xs font-bold transition-all cursor-pointer shadow-sm ${
-                cutoffLocked
-                  ? "bg-rose-500 text-white hover:bg-rose-600"
-                  : "bg-[#F5C542] hover:bg-[#D4A200] text-[#0F1928]"
-              }`}
+              className="flex items-center gap-1.5 shadow-sm"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>{cutoffLocked ? "Cutoff Locked" : "Lock cutoff"}</span>
-            </button>
+            </Button>
           </div>
         </section>
+
+        {/* Error banner */}
+        {error && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+            <Button variant="ghost" size="compact" onClick={loadOrders} className="text-rose-700 hover:bg-rose-100">
+              Try again
+            </Button>
+          </div>
+        )}
 
         {/* ========================================================= */}
         {/* 4. ORDERS MAIN DATA TABLE CARD */}
@@ -339,26 +342,15 @@ export default function DispatcherOrdersPage() {
         <section className="bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-5">
           {/* Filter Tabs & Search Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-black/[0.05]">
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl w-fit">
-              {["All", "Pending", "Planned", "Dispatched", "Delivered"].map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    statusFilter === st
-                      ? "bg-white text-indigo-700 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
+            {/* Filter Pills using FilterTabs */}
+            <FilterTabs
+              tabs={STATUS_TABS}
+              activeTab={statusFilter}
+              onSelect={(tabId) => setStatusFilter(tabId)}
+            />
 
             {/* Table Search */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/[0.08] bg-slate-50/60 focus-within:bg-white focus-within:border-indigo-400 transition-colors w-full sm:w-64">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/[0.08] bg-slate-50/60 focus-within:bg-white focus-within:border-[#F5C542] transition-colors w-full sm:w-64">
               <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
               <input
                 type="text"
@@ -368,7 +360,11 @@ export default function DispatcherOrdersPage() {
                 className="w-full bg-transparent border-0 outline-none text-xs text-[#0F1020] placeholder-slate-400"
               />
               {tableSearch && (
-                <button type="button" onClick={() => setTableSearch("")} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setTableSearch("")}
+                  className="text-slate-400 hover:text-slate-600"
+                >
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -393,7 +389,16 @@ export default function DispatcherOrdersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.04]">
-                {filteredOrders.length === 0 ? (
+                {isLoading && orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-xs text-slate-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-[#F5C542]" />
+                        <span>Loading orders...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-xs text-slate-400">
                       No orders found matching the filter criteria.
@@ -416,21 +421,9 @@ export default function DispatcherOrdersPage() {
                         {item.store}
                       </td>
 
-                      {/* Brand */}
+                      {/* Brand Tag Component */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        {item.brand === "Fresh" ? (
-                          <span className="inline-block px-2 py-0.5 rounded-[5px] bg-emerald-50 text-[#10B981] border border-emerald-200/60 text-[9px] font-bold uppercase">
-                            Fresh
-                          </span>
-                        ) : item.brand === "Style" ? (
-                          <span className="inline-block px-2 py-0.5 rounded-[5px] bg-sky-50 text-[#4B8EF5] border border-sky-200/60 text-[9px] font-bold uppercase">
-                            Style
-                          </span>
-                        ) : (
-                          <span className="inline-block px-2 py-0.5 rounded-[5px] bg-purple-50 text-[#7C3AED] border border-purple-200/60 text-[9px] font-bold uppercase">
-                            Tech
-                          </span>
-                        )}
+                        <BrandTag brand={item.brand} />
                       </td>
 
                       {/* District */}
@@ -458,25 +451,9 @@ export default function DispatcherOrdersPage() {
                         {item.placed}
                       </td>
 
-                      {/* Status */}
+                      {/* Status Badge Component */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        {item.status === "Planned" ? (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-[#4B8EF5] border border-blue-200/60 text-[10px] font-bold">
-                            Planned
-                          </span>
-                        ) : item.status === "Pending" ? (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-50 text-[#F59E0B] border border-amber-200/60 text-[10px] font-bold">
-                            Pending
-                          </span>
-                        ) : item.status === "Dispatched" ? (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-purple-50 text-[#7C3AED] border border-purple-200/60 text-[10px] font-bold">
-                            Dispatched
-                          </span>
-                        ) : (
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#10B981] border border-emerald-200/60 text-[10px] font-bold">
-                            Delivered
-                          </span>
-                        )}
+                        <StatusBadge status={item.status} />
                       </td>
 
                       {/* Action Eye Icon */}
@@ -503,17 +480,19 @@ export default function DispatcherOrdersPage() {
       </main>
 
       {/* ========================================================= */}
-      {/* 5. ORDER DETAILS DRAWER / MODAL */}
+      {/* 5. ORDER DETAILS MODAL */}
       {/* ========================================================= */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-[18px] max-w-md w-full p-6 shadow-2xl border border-black/10 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.08]">
               <div>
-                <span className="font-mono font-bold text-xs bg-slate-100 px-2.5 py-0.5 rounded text-slate-800">
+                <span className="font-mono font-bold text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-800">
                   {selectedOrder.id}
                 </span>
-                <h3 className="text-sm font-bold text-[#0F1020] mt-1">{selectedOrder.store}</h3>
+                <h3 className="text-base font-bold text-[#0F1020] mt-1">
+                  {selectedOrder.store}
+                </h3>
               </div>
               <button
                 type="button"
@@ -524,22 +503,24 @@ export default function DispatcherOrdersPage() {
               </button>
             </div>
 
-            <div className="py-4 space-y-2.5 text-xs">
+            <div className="py-3.5 space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
                 <span className="text-[#7B7B9D]">Retail Brand</span>
-                <span className="font-bold text-[#0F1020]">{selectedOrder.brand}</span>
+                <BrandTag brand={selectedOrder.brand} />
               </div>
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
-                <span className="text-[#7B7B9D]">Delivery District</span>
-                <span className="font-bold text-[#0F1020]">{selectedOrder.district}</span>
+                <span className="text-[#7B7B9D]">District / Depot</span>
+                <span className="font-semibold text-[#0F1020]">{selectedOrder.district}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
-                <span className="text-[#7B7B9D]">Items / Quantity</span>
-                <span className="font-bold text-[#0F1020]">{selectedOrder.items} cartons</span>
+                <span className="text-[#7B7B9D]">Cartons / Items</span>
+                <span className="font-bold text-[#0F1020]">{selectedOrder.items} units</span>
               </div>
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
-                <span className="text-[#7B7B9D]">Cubic Volume</span>
-                <span className="font-bold text-[#0F1020]">{selectedOrder.volume}</span>
+                <span className="text-[#7B7B9D]">Weight & Volume</span>
+                <span className="font-semibold text-[#0F1020]">
+                  {selectedOrder.weight} · {selectedOrder.volume}
+                </span>
               </div>
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
                 <span className="text-[#7B7B9D]">Assigned Trip</span>
@@ -551,21 +532,21 @@ export default function DispatcherOrdersPage() {
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-[#7B7B9D]">Current Status</span>
-                <span className="font-bold text-indigo-600">{selectedOrder.status}</span>
+                <StatusBadge status={selectedOrder.status} />
               </div>
             </div>
 
             <div className="flex items-center gap-2 pt-3 border-t border-black/[0.08]">
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 onClick={() => {
                   triggerToast(`Order ${selectedOrder.id} status updated`);
                   setSelectedOrder(null);
                 }}
-                className="w-full py-2.5 rounded-lg bg-[#F5C542] hover:bg-[#D4A200] text-[#0F1928] font-bold text-xs shadow-md transition-colors cursor-pointer"
+                className="w-full"
               >
                 Update Dispatch Assignment
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -657,19 +638,19 @@ export default function DispatcherOrdersPage() {
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-black/[0.08]">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setIsNewOrderOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#0F1020] font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#F5C542] hover:bg-[#D4A200] text-[#0F1928] font-bold shadow-md transition-colors cursor-pointer"
+                  variant="primary"
                 >
                   Create Order
-                </button>
+                </Button>
               </div>
             </form>
           </div>
