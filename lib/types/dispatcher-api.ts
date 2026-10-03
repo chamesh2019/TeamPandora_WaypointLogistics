@@ -167,3 +167,5 @@ export interface DispatcherTripDto {
   orders: DispatcherTripOrderDto[];
 }
 
+export * from "./dispatcher-fleet";
+
