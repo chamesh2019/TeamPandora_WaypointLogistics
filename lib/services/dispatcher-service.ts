@@ -1179,5 +1179,93 @@ export class DispatcherService {
       },
     };
   }
+
+  /**
+   * Updates a fleet vehicle's maintenance status or assigned driver.
+   */
+  static async updateFleetVehicle(
+    vehicleId: string,
+    payload: {
+      status?: "available" | "in_workshop";
+      driverId?: string | null;
+    }
+  ): Promise<{ vehicleId: string; status: string; assignedDriverId: string | null }> {
+    if (!vehicleId) {
+      throw new Error("vehicleId is required");
+    }
+
+    // 1. Verify vehicle exists
+    const vehRes = await pool.query(
+      `SELECT vehicle_id, status, assigned_driver_id FROM vehicles WHERE vehicle_id = $1`,
+      [vehicleId]
+    );
+    if (vehRes.rows.length === 0) {
+      throw new Error(`Vehicle ${vehicleId} not found`);
+    }
+
+    const currentVeh = vehRes.rows[0];
+
+    // 2. If status change to in_workshop is requested, check active trips
+    if (payload.status === "in_workshop") {
+      const activeTripsRes = await pool.query(
+        `SELECT trip_id, status FROM trips WHERE vehicle_id = $1 AND status IN ('PLANNED', 'LOADING', 'IN_TRANSIT') LIMIT 1`,
+        [vehicleId]
+      );
+      if (activeTripsRes.rows.length > 0) {
+        const trip = activeTripsRes.rows[0];
+        throw new Error(
+          `Cannot send vehicle to workshop while assigned to active trip ${trip.trip_id} (${trip.status}). Please reallocate or unassign the trip first.`
+        );
+      }
+    }
+
+    // 3. If driverId is provided, verify driver exists
+    if (payload.driverId) {
+      const driverRes = await pool.query(
+        `SELECT user_id FROM users WHERE user_id = $1 AND role = 'driver'`,
+        [payload.driverId]
+      );
+      if (driverRes.rows.length === 0) {
+        throw new Error(`Driver with ID ${payload.driverId} not found or is not a driver`);
+      }
+    }
+
+    // 4. Build update fields
+    const updates: string[] = [];
+    const params: unknown[] = [vehicleId];
+    let paramIndex = 2;
+
+    if (payload.status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      params.push(payload.status);
+    }
+
+    if (payload.driverId !== undefined) {
+      updates.push(`assigned_driver_id = $${paramIndex++}`);
+      params.push(payload.driverId);
+    }
+
+    if (updates.length > 0) {
+      const updateQuery = `
+        UPDATE vehicles
+        SET ${updates.join(", ")}
+        WHERE vehicle_id = $1
+        RETURNING vehicle_id, status, assigned_driver_id;
+      `;
+      const updateRes = await pool.query(updateQuery, params);
+      const row = updateRes.rows[0];
+      return {
+        vehicleId: row.vehicle_id,
+        status: row.status,
+        assignedDriverId: row.assigned_driver_id,
+      };
+    }
+
+    return {
+      vehicleId: currentVeh.vehicle_id,
+      status: currentVeh.status,
+      assignedDriverId: currentVeh.assigned_driver_id,
+    };
+  }
 }
 

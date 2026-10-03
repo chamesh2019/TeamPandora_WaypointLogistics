@@ -53,4 +53,49 @@ describe("DispatcherService Fleet & KPIs", () => {
       });
     });
   });
+
+  describe("updateFleetVehicle", () => {
+    it("updates status to in_workshop on an idle vehicle, and then restores it to available", async () => {
+      const res1 = await DispatcherService.updateFleetVehicle("VEH014", {
+        status: "in_workshop",
+      });
+      expect(res1.vehicleId).toBe("VEH014");
+      expect(res1.status).toBe("in_workshop");
+
+      // Verify in getFleet
+      const fleet1 = await DispatcherService.getFleet();
+      const veh1 = fleet1.vehicles.find((v) => v.id === "VEH014");
+      expect(veh1?.operationalStatus).toBe("Workshop");
+
+      // Restore to available
+      const res2 = await DispatcherService.updateFleetVehicle("VEH014", {
+        status: "available",
+      });
+      expect(res2.status).toBe("available");
+
+      const fleet2 = await DispatcherService.getFleet();
+      const veh2 = fleet2.vehicles.find((v) => v.id === "VEH014");
+      expect(veh2?.operationalStatus).toBe("Idle");
+    });
+
+    it("rejects sending vehicle to workshop when it is assigned to an active trip", async () => {
+      await expect(
+        DispatcherService.updateFleetVehicle("VEH001", {
+          status: "in_workshop",
+        })
+      ).rejects.toThrow(/Cannot send vehicle to workshop while assigned to active trip/);
+    });
+
+    it("updates assigned driver on a vehicle and allows unassigning", async () => {
+      const updated = await DispatcherService.updateFleetVehicle("VEH003", {
+        driverId: "usr-driv-001",
+      });
+      expect(updated.assignedDriverId).toBe("usr-driv-001");
+
+      const cleared = await DispatcherService.updateFleetVehicle("VEH003", {
+        driverId: null,
+      });
+      expect(cleared.assignedDriverId).toBeNull();
+    });
+  });
 });
