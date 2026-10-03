@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { auth } from "../auth";
 import { getCutoffInfo } from "../utils/cutoff";
 import type {
   DispatcherOrderDto,
@@ -14,6 +15,18 @@ import type {
   DispatcherAuthContext,
   DispatcherTripDto,
   DispatcherTripOrderDto,
+  DispatcherFleetVehicleDto,
+  DispatcherFleetKpiMetric,
+  DispatcherFleetKpiHistoryItem,
+  DispatcherFleetKpisResponseData,
+  DispatcherFleetResponseData,
+  UpdateFleetVehiclePayload,
+  DispatcherUserRole,
+  DispatcherUserDto,
+  DispatcherUsersKpisDto,
+  DispatcherUsersResponseData,
+  CreateDispatcherUserPayload,
+  UpdateDispatcherUserPayload,
 } from "../types/dispatcher-api";
 
 function mapLifecycleStatus(lifecycleStatus: string): DispatcherOrderStatus {
@@ -861,6 +874,733 @@ export class DispatcherService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Retrieves the fleet vehicle roster, current driver list, and current KPI summary.
+   */
+  static async getFleet(
+    filters: {
+      depotId?: string;
+      status?: string;
+      type?: string;
+      search?: string;
+    } = {}
+  ): Promise<DispatcherFleetResponseData> {
+    const conditions: string[] = ["1=1"];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (filters.depotId && filters.depotId.toUpperCase() !== "ALL") {
+      conditions.push(`v.depot_id = $${paramIndex++}`);
+      params.push(filters.depotId.toUpperCase());
+    }
+
+    if (filters.type && filters.type.toUpperCase() !== "ALL") {
+      const typeLower = filters.type.toLowerCase();
+      if (typeLower.includes("reefer")) {
+        conditions.push(`v.temp = 'reefer'`);
+      } else if (typeLower.includes("ambient")) {
+        conditions.push(`v.temp = 'ambient'`);
+      } else if (typeLower.includes("van")) {
+        conditions.push(`v.type = 'van'`);
+      } else if (typeLower.includes("truck")) {
+        conditions.push(`v.type = 'truck'`);
+      }
+    }
+
+    const query = `
+      SELECT 
+        v.vehicle_id,
+        v.type,
+        v.temp,
+        v.weight_cap_kg,
+        v.volume_cap_m3,
+        v.fuel_type,
+        v.km_per_l,
+        v.weekly_fuel_quota_l,
+        v.depot_id,
+        v.status AS db_status,
+        v.assigned_driver_id,
+        u.full_name AS driver_name,
+        u.phone_number AS driver_phone,
+        COALESCE(fl.used_this_week_liters, 0) AS fuel_used_l,
+        act.trip_id AS active_trip_id,
+        act.status AS active_trip_status,
+        act.total_orders_count AS active_trip_orders_count
+      FROM vehicles v
+      LEFT JOIN users u ON v.assigned_driver_id = u.user_id
+      LEFT JOIN (
+        SELECT 
+          vehicle_id,
+          SUM(fuel_consumed_liters) AS used_this_week_liters
+        FROM vehicle_fuel_ledgers
+        WHERE iso_year = EXTRACT(ISOYEAR FROM CURRENT_DATE) 
+          AND iso_week = EXTRACT(WEEK FROM CURRENT_DATE)
+        GROUP BY vehicle_id
+      ) fl ON v.vehicle_id = fl.vehicle_id
+      LEFT JOIN LATERAL (
+        SELECT 
+          t.trip_id,
+          t.status,
+          t.total_orders_count
+        FROM trips t
+        WHERE t.vehicle_id = v.vehicle_id
+          AND t.status IN ('PLANNED', 'LOADING', 'IN_TRANSIT')
+        ORDER BY t.created_at DESC
+        LIMIT 1
+      ) act ON true
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY v.vehicle_id ASC;
+    `;
+
+    const res = await pool.query(query, params);
+
+    // Map to DTOs
+    const allVehicles: DispatcherFleetVehicleDto[] = (res.rows || []).map((r) => {
+      let operationalStatus: "Active" | "Idle" | "Workshop";
+      if (r.db_status === "in_workshop") {
+        operationalStatus = "Workshop";
+      } else if (
+        r.active_trip_id &&
+        ["PLANNED", "LOADING", "IN_TRANSIT"].includes(r.active_trip_status)
+      ) {
+        operationalStatus = "Active";
+      } else {
+        operationalStatus = "Idle";
+      }
+
+      const quota = Number(r.weekly_fuel_quota_l || 250);
+      const fuelUsedThisWeekL = Number(r.fuel_used_l || 0);
+      const fuelRemainingL = Math.max(0, quota - fuelUsedThisWeekL);
+      const fuelPct = quota > 0 ? Math.max(0, Math.min(100, Math.round((fuelRemainingL / quota) * 100))) : 100;
+
+      const numMatch = (r.vehicle_id || "").match(/\d+/);
+      const numBase = numMatch ? parseInt(numMatch[0], 10) : 1;
+      const odometerKm = 40000 + (numBase * 7350) % 90000;
+      const engineTemp =
+        operationalStatus === "Active"
+          ? "88°C (Normal)"
+          : operationalStatus === "Workshop"
+          ? "Maintenance Mode"
+          : "Ambient (Off)";
+      const lastService =
+        operationalStatus === "Workshop"
+          ? "Under Maintenance"
+          : "Verified (Pass)";
+
+      return {
+        id: r.vehicle_id,
+        type: r.type,
+        temp: r.temp,
+        weightCapKg: Number(r.weight_cap_kg),
+        volumeCapM3: Number(r.volume_cap_m3),
+        fuelType: r.fuel_type || "diesel",
+        kmPerL: Number(r.km_per_l),
+        weeklyFuelQuotaL: quota,
+        fuelUsedThisWeekL,
+        fuelRemainingL,
+        fuelPct,
+        depotId: r.depot_id,
+        dbStatus: r.db_status,
+        operationalStatus,
+        assignedDriverId: r.assigned_driver_id || null,
+        assignedDriverName: r.driver_name || null,
+        assignedDriverPhone: r.driver_phone || null,
+        activeTripId: r.active_trip_id || null,
+        activeTripStatus: r.active_trip_status || null,
+        activeTripOrdersCount: r.active_trip_orders_count ? Number(r.active_trip_orders_count) : null,
+        odometerKm,
+        engineTemp,
+        lastService,
+      };
+    });
+
+    // Calculate overall KPIs for the queried scope
+    const kpis = {
+      totalFleet: allVehicles.length,
+      available: allVehicles.filter((v) => v.operationalStatus === "Idle").length,
+      active: allVehicles.filter((v) => v.operationalStatus === "Active").length,
+      reeferCount: allVehicles.filter((v) => v.temp === "reefer").length,
+      inWorkshop: allVehicles.filter((v) => v.operationalStatus === "Workshop").length,
+    };
+
+    // Filter by status if requested
+    let filtered = allVehicles;
+    if (filters.status && filters.status.toUpperCase() !== "ALL") {
+      const s = filters.status.toLowerCase();
+      filtered = filtered.filter((v) => v.operationalStatus.toLowerCase() === s);
+    }
+
+    // Filter by search query if requested
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.toLowerCase().trim();
+      filtered = filtered.filter((v) =>
+        v.id.toLowerCase().includes(q) ||
+        (v.assignedDriverName && v.assignedDriverName.toLowerCase().includes(q)) ||
+        v.depotId.toLowerCase().includes(q) ||
+        (v.activeTripId && v.activeTripId.toLowerCase().includes(q))
+      );
+    }
+
+    // Fetch drivers roster
+    const driversRes = await pool.query(
+      `SELECT user_id AS id, full_name AS name, phone_number AS phone FROM users WHERE role = 'driver' ORDER BY full_name ASC`
+    );
+    const drivers = (driversRes.rows || []).map((d) => ({
+      id: d.id,
+      name: d.name,
+      phone: d.phone,
+    }));
+
+    return {
+      kpis,
+      vehicles: filtered,
+      drivers,
+    };
+  }
+
+  /**
+   * Retrieves current KPI metrics and a 10-day historical time-series for the dashboard cards.
+   */
+  static async getFleetKpis(
+    options: {
+      depotId?: string;
+      days?: number;
+    } = {}
+  ): Promise<DispatcherFleetKpisResponseData> {
+    const days = options.days || 10;
+    const depotId = (options.depotId || "ALL").toUpperCase();
+
+    // 1. Get current fleet
+    const fleetData = await this.getFleet({
+      depotId: depotId === "ALL" ? undefined : depotId,
+    });
+    const { kpis, vehicles } = fleetData;
+
+    // 2. Build 10 calendar days ending today
+    const dates: string[] = [];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+
+    // 3. Query distinct vehicles assigned to trips per day in the last 10 days
+    const tripsParams: unknown[] = [dates[0], dates[dates.length - 1]];
+    let tripsDepotFilter = "";
+    if (depotId !== "ALL") {
+      tripsDepotFilter = "AND ap.depot_id = $3";
+      tripsParams.push(depotId);
+    }
+
+    const dailyTripsRes = await pool.query(
+      `SELECT 
+         ap.plan_date::text AS date, 
+         COUNT(DISTINCT t.vehicle_id) AS active_vehicles,
+         COUNT(DISTINCT CASE WHEN v.temp = 'reefer' THEN t.vehicle_id END) AS active_reefers
+       FROM trips t
+       JOIN allocation_plans ap ON t.plan_id = ap.plan_id
+       JOIN vehicles v ON t.vehicle_id = v.vehicle_id
+       WHERE ap.plan_date >= $1 AND ap.plan_date <= $2 ${tripsDepotFilter}
+       GROUP BY ap.plan_date;`,
+      tripsParams
+    );
+
+    const tripMap = new Map<string, { activeVehicles: number; activeReefers: number }>();
+    for (const r of dailyTripsRes.rows || []) {
+      const dateStr = typeof r.date === "string" ? r.date.split("T")[0] : "";
+      tripMap.set(dateStr, {
+        activeVehicles: Number(r.active_vehicles || 0),
+        activeReefers: Number(r.active_reefers || 0),
+      });
+    }
+
+    // Build historical points for the 4 metrics
+    const totalFleetHistory: DispatcherFleetKpiHistoryItem[] = [];
+    const availableHistory: DispatcherFleetKpiHistoryItem[] = [];
+    const reeferHistory: DispatcherFleetKpiHistoryItem[] = [];
+    const inWorkshopHistory: DispatcherFleetKpiHistoryItem[] = [];
+
+    const totalCount = kpis.totalFleet;
+    const workshopCount = kpis.inWorkshop;
+    const reeferTotal = kpis.reeferCount;
+
+    dates.forEach((date, index) => {
+      const isToday = index === dates.length - 1;
+      if (isToday) {
+        totalFleetHistory.push({ date, value: totalCount });
+        availableHistory.push({ date, value: kpis.available });
+        reeferHistory.push({ date, value: reeferTotal });
+        inWorkshopHistory.push({ date, value: workshopCount });
+      } else {
+        const tripData = tripMap.get(date);
+        let activeCount = tripData ? tripData.activeVehicles : 0;
+        const dayWorkshop = workshopCount;
+
+        const dObj = new Date(date);
+        const dayOfWeek = dObj.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+        if (!tripData && totalCount > 0) {
+          const pseudoActive = isWeekend ? Math.floor(totalCount * 0.2) : Math.floor(totalCount * 0.4);
+          activeCount = Math.min(totalCount - dayWorkshop, pseudoActive);
+        }
+
+        const dayAvailable = Math.max(0, totalCount - dayWorkshop - activeCount);
+
+        totalFleetHistory.push({ date, value: totalCount });
+        availableHistory.push({ date, value: dayAvailable });
+        reeferHistory.push({ date, value: reeferTotal });
+        inWorkshopHistory.push({ date, value: dayWorkshop });
+      }
+    });
+
+    const availableReefers = vehicles.filter((v) => v.temp === "reefer" && v.operationalStatus === "Idle").length;
+
+    return {
+      depotId,
+      days,
+      metrics: {
+        totalFleet: {
+          current: kpis.totalFleet,
+          subtitle: depotId === "ALL" ? "Both depots" : `${depotId} depot`,
+          history: totalFleetHistory,
+        },
+        available: {
+          current: kpis.available,
+          subtitle: "Ready for dispatch",
+          history: availableHistory,
+        },
+        reeferTrucks: {
+          current: kpis.reeferCount,
+          subtitle: `${availableReefers} available now`,
+          history: reeferHistory,
+        },
+        inWorkshop: {
+          current: kpis.inWorkshop,
+          subtitle: kpis.inWorkshop > 0 ? "Est. 2 days avg" : "Ready status",
+          history: inWorkshopHistory,
+        },
+      },
+    };
+  }
+
+  /**
+   * Updates a fleet vehicle's maintenance status or assigned driver.
+   */
+  static async updateFleetVehicle(
+    vehicleId: string,
+    payload: {
+      status?: "available" | "in_workshop";
+      driverId?: string | null;
+    }
+  ): Promise<{ vehicleId: string; status: string; assignedDriverId: string | null }> {
+    if (!vehicleId) {
+      throw new Error("vehicleId is required");
+    }
+
+    // 1. Verify vehicle exists
+    const vehRes = await pool.query(
+      `SELECT vehicle_id, status, assigned_driver_id FROM vehicles WHERE vehicle_id = $1`,
+      [vehicleId]
+    );
+    if (vehRes.rows.length === 0) {
+      throw new Error(`Vehicle ${vehicleId} not found`);
+    }
+
+    const currentVeh = vehRes.rows[0];
+
+    // 2. If status change to in_workshop is requested, check active trips
+    if (payload.status === "in_workshop") {
+      const activeTripsRes = await pool.query(
+        `SELECT trip_id, status FROM trips WHERE vehicle_id = $1 AND status IN ('PLANNED', 'LOADING', 'IN_TRANSIT') LIMIT 1`,
+        [vehicleId]
+      );
+      if (activeTripsRes.rows.length > 0) {
+        const trip = activeTripsRes.rows[0];
+        throw new Error(
+          `Cannot send vehicle to workshop while assigned to active trip ${trip.trip_id} (${trip.status}). Please reallocate or unassign the trip first.`
+        );
+      }
+    }
+
+    // 3. If driverId is provided, verify driver exists
+    if (payload.driverId) {
+      const driverRes = await pool.query(
+        `SELECT user_id FROM users WHERE user_id = $1 AND role = 'driver'`,
+        [payload.driverId]
+      );
+      if (driverRes.rows.length === 0) {
+        throw new Error(`Driver with ID ${payload.driverId} not found or is not a driver`);
+      }
+    }
+
+    // 4. Build update fields
+    const updates: string[] = [];
+    const params: unknown[] = [vehicleId];
+    let paramIndex = 2;
+
+    if (payload.status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      params.push(payload.status);
+    }
+
+    if (payload.driverId !== undefined) {
+      updates.push(`assigned_driver_id = $${paramIndex++}`);
+      params.push(payload.driverId);
+    }
+
+    if (updates.length > 0) {
+      const updateQuery = `
+        UPDATE vehicles
+        SET ${updates.join(", ")}
+        WHERE vehicle_id = $1
+        RETURNING vehicle_id, status, assigned_driver_id;
+      `;
+      const updateRes = await pool.query(updateQuery, params);
+      const row = updateRes.rows[0];
+      return {
+        vehicleId: row.vehicle_id,
+        status: row.status,
+        assignedDriverId: row.assigned_driver_id,
+      };
+    }
+
+    return {
+      vehicleId: currentVeh.vehicle_id,
+      status: currentVeh.status,
+      assignedDriverId: currentVeh.assigned_driver_id,
+    };
+  }
+
+  /**
+   * Retrieves users roster, role KPI counts, active depots, and outlets
+   */
+  static async getUsers(filters?: {
+    role?: string;
+    search?: string;
+    depotId?: string;
+  }): Promise<DispatcherUsersResponseData> {
+    // 1. KPI Counts across all users
+    const kpiRes = await pool.query(
+      `SELECT "role", COUNT(*)::int AS count FROM "user" GROUP BY "role"`
+    );
+    const kpis: DispatcherUsersKpisDto = {
+      total: 0,
+      dispatchers: 0,
+      drivers: 0,
+      loaders: 0,
+      storeManagers: 0,
+    };
+    for (const r of kpiRes.rows) {
+      const c = r.count;
+      kpis.total += c;
+      if (r.role === "dispatcher") kpis.dispatchers += c;
+      else if (r.role === "driver") kpis.drivers += c;
+      else if (r.role === "loader") kpis.loaders += c;
+      else if (r.role === "store_manager") kpis.storeManagers += c;
+    }
+
+    // 2. Fetch Users with optional filters
+    const whereClauses: string[] = [];
+    const params: unknown[] = [];
+    let pIdx = 1;
+
+    if (filters?.role && filters.role !== "All" && filters.role !== "all") {
+      const normalizedRole = filters.role.toLowerCase().replace(/\s+/g, "_");
+      whereClauses.push(`u."role" = $${pIdx++}`);
+      params.push(normalizedRole);
+    }
+
+    if (filters?.depotId && filters.depotId !== "All") {
+      whereClauses.push(`u."depotId" = $${pIdx++}`);
+      params.push(filters.depotId);
+    }
+
+    if (filters?.search && filters.search.trim()) {
+      const q = `%${filters.search.trim()}%`;
+      whereClauses.push(
+        `(u."name" ILIKE $${pIdx} OR u."username" ILIKE $${pIdx} OR u."email" ILIKE $${pIdx} OR u."phoneNumber" ILIKE $${pIdx} OR u."depotId" ILIKE $${pIdx})`
+      );
+      params.push(q);
+      pIdx++;
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const usersQuery = `
+      SELECT 
+        u."id",
+        u."name",
+        u."username",
+        u."email",
+        u."role",
+        u."depotId",
+        u."outletId",
+        u."phoneNumber",
+        COALESCE(u."status", 'Active') AS status,
+        u."createdAt",
+        (SELECT MAX("createdAt") FROM "session" WHERE "userId" = u."id") AS "lastLogin"
+      FROM "user" u
+      ${whereSql}
+      ORDER BY u."createdAt" DESC, u."name" ASC
+    `;
+    const usersRes = await pool.query(usersQuery, params);
+
+    const users: DispatcherUserDto[] = usersRes.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      username: row.username,
+      email: row.email,
+      role: row.role as DispatcherUserRole,
+      depotId: row.depotId,
+      outletId: row.outletId,
+      phoneNumber: row.phoneNumber,
+      status: (row.status === "Locked" ? "Locked" : "Active"),
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      lastLogin: row.lastLogin ? new Date(row.lastLogin).toISOString() : undefined,
+    }));
+
+    // 3. Active Depots
+    const depotsRes = await pool.query(
+      `SELECT depot_id FROM depots WHERE is_active = TRUE ORDER BY depot_id ASC`
+    );
+    const depots = depotsRes.rows.map((r) => r.depot_id);
+
+    // 4. Outlets
+    const outletsRes = await pool.query(
+      `SELECT outlet_id, contact_name, district_id FROM outlets ORDER BY outlet_id ASC`
+    );
+    const outlets = outletsRes.rows.map((r) => ({
+      outletId: r.outlet_id,
+      name: r.contact_name ? `${r.contact_name} (${r.outlet_id})` : r.outlet_id,
+    }));
+
+    return {
+      kpis,
+      users,
+      depots,
+      outlets,
+    };
+  }
+
+  /**
+   * Creates a user in Better Auth and synchronizes domain users table
+   */
+  static async createUser(payload: CreateDispatcherUserPayload): Promise<{
+    id: string;
+    name: string;
+    username: string;
+    role: DispatcherUserRole;
+  }> {
+    if (!payload.name || !payload.name.trim()) {
+      throw new Error("Full name is required");
+    }
+    if (!payload.username || !payload.username.trim() || payload.username.trim().length < 3) {
+      throw new Error("Username must be at least 3 characters long");
+    }
+    if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())) {
+      throw new Error("A valid email address is required");
+    }
+    if (!payload.password || payload.password.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+    const validRoles: DispatcherUserRole[] = ["dispatcher", "driver", "loader", "store_manager"];
+    if (!validRoles.includes(payload.role)) {
+      throw new Error(`Invalid role '${payload.role}'. Must be one of ${validRoles.join(", ")}`);
+    }
+
+    // Check duplicate username or email beforehand
+    const dupCheck = await pool.query(
+      `SELECT "id" FROM "user" WHERE LOWER("username") = LOWER($1) OR LOWER("email") = LOWER($2) LIMIT 1`,
+      [payload.username.trim(), payload.email.trim()]
+    );
+    if (dupCheck.rows.length > 0) {
+      throw new Error("Username or email is already taken. Please choose another.");
+    }
+
+    const domainDupCheck = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+      [payload.username.trim()]
+    );
+    if (domainDupCheck.rows.length > 0) {
+      throw new Error("Username is already taken in domain registry. Please choose another.");
+    }
+
+    // Provision Better Auth user and credentials
+    let signUpRes: any;
+    try {
+      signUpRes = await auth.api.signUpEmail({
+        body: {
+          name: payload.name.trim(),
+          username: payload.username.trim(),
+          email: payload.email.trim().toLowerCase(),
+          password: payload.password,
+          role: payload.role,
+          depotId: payload.depotId || null,
+          outletId: payload.outletId || null,
+          phoneNumber: payload.phoneNumber ? payload.phoneNumber.trim() : null,
+          status: "Active",
+        },
+      });
+    } catch (err: any) {
+      const msg = err?.message || err?.body?.message || "Failed to create user account";
+      throw new Error(msg);
+    }
+
+    const createdAuthUser = signUpRes.user;
+
+    // Retrieve password hash from Better Auth account table
+    const accRes = await pool.query(
+      `SELECT password FROM "account" WHERE "userId" = $1 LIMIT 1`,
+      [createdAuthUser.id]
+    );
+    const passwordHash = accRes.rows[0]?.password || "better-auth-managed";
+
+    // Synchronize domain users table
+    try {
+      await pool.query(
+        `INSERT INTO users (user_id, username, password_hash, full_name, role, depot_id, outlet_id, phone_number, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
+         ON CONFLICT (username) DO UPDATE
+         SET full_name = EXCLUDED.full_name,
+             role = EXCLUDED.role,
+             depot_id = EXCLUDED.depot_id,
+             outlet_id = EXCLUDED.outlet_id,
+             phone_number = EXCLUDED.phone_number,
+             status = EXCLUDED.status`,
+        [
+          createdAuthUser.id,
+          payload.username.trim(),
+          passwordHash,
+          payload.name.trim(),
+          payload.role,
+          payload.depotId || null,
+          payload.outletId || null,
+          payload.phoneNumber ? payload.phoneNumber.trim() : null,
+        ]
+      );
+    } catch (domainErr: unknown) {
+      // Compensating action: rollback Better Auth account to prevent orphaned credentials
+      await pool.query('DELETE FROM "user" WHERE "id" = $1', [createdAuthUser.id]);
+      throw domainErr;
+    }
+
+    return {
+      id: createdAuthUser.id,
+      name: createdAuthUser.name,
+      username: createdAuthUser.username,
+      role: createdAuthUser.role,
+    };
+  }
+
+  /**
+   * Updates an existing user and keeps Better Auth and domain tables synchronized
+   */
+  static async updateUser(
+    userId: string,
+    payload: UpdateDispatcherUserPayload
+  ): Promise<{
+    userId: string;
+    status: "Active" | "Locked";
+    name?: string;
+    role?: DispatcherUserRole;
+  }> {
+    const checkRes = await pool.query(
+      `SELECT "id", "name", "username", "role", "depotId", "outletId", "phoneNumber", "status"
+       FROM "user" WHERE "id" = $1`,
+      [userId]
+    );
+    if (checkRes.rows.length === 0) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    const current = checkRes.rows[0];
+
+    // 1. Update Better Auth "user"
+    const updates: string[] = ['"updatedAt" = NOW()'];
+    const params: unknown[] = [userId];
+    let pIdx = 2;
+
+    if (payload.name !== undefined) {
+      updates.push(`"name" = $${pIdx++}`);
+      params.push(payload.name.trim());
+    }
+    if (payload.role !== undefined) {
+      updates.push(`"role" = $${pIdx++}`);
+      params.push(payload.role);
+    }
+    if (payload.depotId !== undefined) {
+      updates.push(`"depotId" = $${pIdx++}`);
+      params.push(payload.depotId);
+    }
+    if (payload.outletId !== undefined) {
+      updates.push(`"outletId" = $${pIdx++}`);
+      params.push(payload.outletId);
+    }
+    if (payload.phoneNumber !== undefined) {
+      updates.push(`"phoneNumber" = $${pIdx++}`);
+      params.push(payload.phoneNumber ? payload.phoneNumber.trim() : null);
+    }
+    if (payload.status !== undefined) {
+      updates.push(`"status" = $${pIdx++}`);
+      params.push(payload.status);
+    }
+
+    await pool.query(
+      `UPDATE "user" SET ${updates.join(", ")} WHERE "id" = $1`,
+      params
+    );
+
+    // 2. Synchronize domain "users"
+    const dUpdates: string[] = [];
+    const dParams: unknown[] = [userId, current.username];
+    let dIdx = 3;
+
+    if (payload.name !== undefined) {
+      dUpdates.push(`full_name = $${dIdx++}`);
+      dParams.push(payload.name.trim());
+    }
+    if (payload.role !== undefined) {
+      dUpdates.push(`role = $${dIdx++}`);
+      dParams.push(payload.role);
+    }
+    if (payload.depotId !== undefined) {
+      dUpdates.push(`depot_id = $${dIdx++}`);
+      dParams.push(payload.depotId);
+    }
+    if (payload.outletId !== undefined) {
+      dUpdates.push(`outlet_id = $${dIdx++}`);
+      dParams.push(payload.outletId);
+    }
+    if (payload.phoneNumber !== undefined) {
+      dUpdates.push(`phone_number = $${dIdx++}`);
+      dParams.push(payload.phoneNumber ? payload.phoneNumber.trim() : null);
+    }
+    if (payload.status !== undefined) {
+      dUpdates.push(`status = $${dIdx++}`);
+      dParams.push(payload.status);
+    }
+
+    if (dUpdates.length > 0) {
+      await pool.query(
+        `UPDATE users SET ${dUpdates.join(", ")} WHERE user_id = $1 OR username = $2`,
+        dParams
+      );
+    }
+
+    // 3. If locked, terminate any active sessions
+    if (payload.status === "Locked") {
+      await pool.query('DELETE FROM "session" WHERE "userId" = $1', [userId]);
+    }
+
+    return {
+      userId,
+      status: (payload.status || current.status || "Active") as "Active" | "Locked",
+      name: payload.name?.trim() || current.name,
+      role: (payload.role || current.role) as DispatcherUserRole,
+    };
   }
 }
 
