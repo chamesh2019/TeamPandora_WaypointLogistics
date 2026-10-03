@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { pool } from '../../../../../lib/db';
+import { requireDispatcher } from '../../../../../lib/api/guard';
 import type { ProposedTrip, DeferredOrder } from '../../../../../lib/services/allocation-solver';
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireDispatcher(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
+
     const body = await request.json().catch(() => ({}));
     const {
       plan_id,
@@ -35,11 +41,7 @@ export async function POST(request: Request) {
       try {
         await client.query('BEGIN');
 
-        // 1. Resolve a dispatcher user ID
-        const userRes = await client.query(
-          `SELECT user_id FROM users WHERE role = 'dispatcher' LIMIT 1`
-        );
-        const dispatcherId = userRes.rows[0]?.user_id || 'usr-disp-001';
+        const dispatcherId = authResult.userId || 'usr-disp-001';
 
         // 2. Insert or replace allocation plan
         await client.query(

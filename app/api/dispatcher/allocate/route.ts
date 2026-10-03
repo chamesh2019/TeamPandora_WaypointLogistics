@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool } from '../../../../lib/db';
+import { requireDispatcher } from '../../../../lib/api/guard';
 import {
   solveAllocation,
   type SolverOrderInput,
@@ -9,6 +10,11 @@ import { validateAllocation } from '../../../../lib/services/allocation-validato
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireDispatcher(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
+
     const body = await request.json().catch(() => ({}));
     const { plan_date, depot_id } = body;
 

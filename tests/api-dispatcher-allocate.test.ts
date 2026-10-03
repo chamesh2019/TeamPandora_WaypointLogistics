@@ -1,8 +1,33 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as allocateRoute } from '../app/api/dispatcher/allocate/route';
 import { POST as publishRoute } from '../app/api/dispatcher/plans/publish/route';
+import * as guard from '../lib/api/guard';
+import { apiError } from '../lib/api/response';
 
 describe('POST /api/dispatcher/allocate', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(guard, 'requireDispatcher').mockResolvedValue({
+      userId: 'usr-disp-001',
+      username: 'dispatcher',
+      role: 'dispatcher',
+      depotId: 'PELIYAGODA',
+    });
+  });
+
+  it('rejects unauthenticated requests with 401', async () => {
+    vi.spyOn(guard, 'requireDispatcher').mockResolvedValueOnce(
+      apiError('UNAUTHORIZED', 'Unauthorized: Authentication required', 401)
+    );
+    const req = new Request('http://localhost:3000/api/dispatcher/allocate', {
+      method: 'POST',
+      body: JSON.stringify({ plan_date: '2026-10-01' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await allocateRoute(req);
+    expect(res.status).toBe(401);
+  });
+
   it('returns proposed trips and deferrals for the requested date', async () => {
     const req = new Request('http://localhost:3000/api/dispatcher/allocate', {
       method: 'POST',
@@ -32,6 +57,19 @@ describe('POST /api/dispatcher/allocate', () => {
 });
 
 describe('POST /api/dispatcher/plans/publish', () => {
+  it('rejects unauthenticated requests with 401', async () => {
+    vi.spyOn(guard, 'requireDispatcher').mockResolvedValueOnce(
+      apiError('UNAUTHORIZED', 'Unauthorized: Authentication required', 401)
+    );
+    const req = new Request('http://localhost:3000/api/dispatcher/plans/publish', {
+      method: 'POST',
+      body: JSON.stringify({ plan_id: 'PLAN-TEST', plan_date: '2026-10-01' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await publishRoute(req);
+    expect(res.status).toBe(401);
+  });
+
   it('publishes an allocation plan successfully', async () => {
     const req = new Request('http://localhost:3000/api/dispatcher/plans/publish', {
       method: 'POST',

@@ -62,3 +62,108 @@ export interface DispatcherAuthContext {
   role: string;
   depotId?: string;
 }
+
+export interface AllocationOrderItemDto {
+  id: string;
+  orderId: string;
+  store: string;
+  brand: "Fresh" | "Style" | "Tech";
+  district: string;
+  weightKg: number;
+  volumeM3: number;
+  temperature: "Chilled" | "Ambient";
+  priority: "high" | "medium" | "low";
+  priorityScore: number;
+  parkingConstraint: string;
+  dockType: string;
+  lifecycleStatus: string;
+}
+
+export interface AllocationVehicleDto {
+  id: string;
+  name: string;
+  type: "truck" | "van";
+  temp: "reefer" | "ambient";
+  isReefer: boolean;
+  maxWeightKg: number;
+  maxVolumeM3: number;
+  depotId: string;
+  status: string;
+  assignedDriverId?: string;
+  assignedDriverName?: string;
+}
+
+export interface AllocationDriverDto {
+  id: string;
+  name: string;
+  username: string;
+  phone?: string;
+}
+
+export interface AllocationQueueSummaryDto {
+  totalUnallocated: number;
+  chilledCount: number;
+  ambientCount: number;
+  totalWeightKg: number;
+  totalVolumeM3: number;
+}
+
+export interface AllocationQueueResponseData {
+  orders: AllocationOrderItemDto[];
+  vehicles: AllocationVehicleDto[];
+  drivers: AllocationDriverDto[];
+  summary: AllocationQueueSummaryDto;
+}
+
+export interface CommitAllocationTripPayload {
+  planDate?: string;
+  depotId?: string;
+  vehicleId: string;
+  driverId: string;
+  tripNumber: 1 | 2;
+  orderIds: string[];
+}
+
+export interface CommitAllocationTripResult {
+  tripId: string;
+  planId: string;
+  vehicleId: string;
+  driverId: string;
+  tripNumber: number;
+  ordersCount: number;
+  totalWeightKg: number;
+  totalVolumeM3: number;
+}
+
+export interface DispatcherTripOrderDto {
+  id: string;
+  orderId: string;
+  storeName: string;
+  outletId: string;
+  itemsCount: number;
+  volumeM3: number;
+  weightKg: number;
+  stopSequence: number;
+  loadSequence: number;
+}
+
+export interface DispatcherTripDto {
+  id: string;
+  tripId: string;
+  planId: string;
+  status: "Draft" | "Incomplete" | "Finalized" | "PLANNED" | "LOADING" | "IN_TRANSIT" | "COMPLETED";
+  tripNumber: number;
+  currentVol: number;
+  maxVol: number;
+  currentWeightKg: number;
+  maxWeightKg: number;
+  depot: string;
+  brand: "Fresh" | "Style" | "Tech";
+  district: string;
+  vehicleId: string;
+  vehiclePlate: string;
+  driverId: string;
+  driverName: string;
+  orders: DispatcherTripOrderDto[];
+}
+
