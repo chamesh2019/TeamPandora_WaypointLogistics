@@ -218,7 +218,7 @@ export default function Header({
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex w-fit max-w-full shrink-0 items-center overflow-x-auto">
+        <nav className="hidden lg:flex w-fit max-w-full min-w-0 items-center overflow-x-auto">
           <DarkTabs
             activeTab={activeHref ?? navItems[0]?.href ?? "/"}
             onSelect={(tabId) => router.push(tabId)}
@@ -228,7 +228,7 @@ export default function Header({
         </nav>
 
         {/* Right side actions */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           {/* Search — desktop only */}
           <div className="hidden h-9 w-48 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 text-white/50 transition-colors focus-within:border-[#F5C542] focus-within:bg-white/10 lg:flex">
             <Search className="h-3.5 w-3.5 shrink-0" />
@@ -381,7 +381,7 @@ export default function Header({
             type="button"
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             onClick={() => setMobileMenuOpen((open) => !open)}
-            className="flex md:hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.07] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex lg:hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.07] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           >
             {mobileMenuOpen ? (
               <X className="h-5 w-5" />
@@ -394,7 +394,7 @@ export default function Header({
 
       {/* Mobile nav drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-white/5 bg-[#0F1928] shadow-[0_4px_20px_rgba(0,0,0,.35)]">
+        <div className="lg:hidden border-b border-white/5 bg-[#0F1928] shadow-[0_4px_20px_rgba(0,0,0,.35)]">
           {/* Mobile search */}
           <div className="px-4 pt-3 pb-2">
             <div className="flex h-9 w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 text-white/50 transition-colors focus-within:border-[#F5C542] focus-within:bg-white/10">
