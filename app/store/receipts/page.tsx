@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Header from "../../../components/layout/header";
 import { Button } from "../../../components/design-system";
 import ConfirmReceiptModal from "./confirm-receipt-modal";
@@ -91,7 +92,10 @@ async function fetchStoreReceiptsData(): Promise<{
   }
 }
 
-export default function ReceiptsPage() {
+function ReceiptsContent() {
+  const searchParams = useSearchParams();
+  const queryOrderId = searchParams.get("orderId");
+
   const [receipts, setReceipts] = useState<PendingReceiptDto[]>([]);
   const [overview, setOverview] = useState<StoreOverviewDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +104,15 @@ export default function ReceiptsPage() {
     useState<PendingReceiptDto | null>(null);
   const [reviewReceipt, setReviewReceipt] =
     useState<PendingReceiptDto | null>(null);
+
+  useEffect(() => {
+    if (queryOrderId && receipts.length > 0) {
+      const matched = receipts.find((r) => r.orderId === queryOrderId);
+      if (matched) {
+        setReviewReceipt(matched);
+      }
+    }
+  }, [queryOrderId, receipts]);
 
   const applyReceiptsData = useCallback(
     (data: {
@@ -476,5 +489,19 @@ export default function ReceiptsPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function ReceiptsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#E9EDF3]">
+          <RefreshCw className="h-6 w-6 animate-spin text-[#4B8EF5]" />
+        </div>
+      }
+    >
+      <ReceiptsContent />
+    </Suspense>
   );
 }
