@@ -39,20 +39,104 @@ interface DayForecast {
 }
 
 const FORECAST_DAYS: DayForecast[] = [
-  { day: 14, dateStr: "Sat 14 Jun", orders: 178, percentage: 48, confidence: 91 },
-  { day: 15, dateStr: "Sun 15 Jun", orders: 192, percentage: 52, confidence: 92 },
-  { day: 16, dateStr: "Mon 16 Jun", orders: 228, percentage: 68, confidence: 94 },
-  { day: 17, dateStr: "Tue 17 Jun", orders: 247, percentage: 80, confidence: 96 },
-  { day: 18, dateStr: "Wed 18 Jun", orders: 231, percentage: 74, confidence: 95 },
-  { day: 19, dateStr: "Thu 19 Jun", orders: 158, percentage: 48, confidence: 90 },
-  { day: 20, dateStr: "Fri 20 Jun", orders: 142, percentage: 42, confidence: 89 },
-  { day: 21, dateStr: "Sat 21 Jun", orders: 215, percentage: 64, confidence: 93 },
-  { day: 22, dateStr: "Sun 22 Jun", orders: 236, percentage: 73, confidence: 94 },
-  { day: 23, dateStr: "Mon 23 Jun", orders: 249, percentage: 78, confidence: 95 },
-  { day: 24, dateStr: "Tue 24 Jun", orders: 265, percentage: 88, confidence: 97 },
-  { day: 25, dateStr: "Wed 25 Jun", orders: 224, percentage: 70, confidence: 92 },
-  { day: 26, dateStr: "Thu 26 Jun", orders: 184, percentage: 53, confidence: 90 },
-  { day: 27, dateStr: "Fri 27 Jun", orders: 168, percentage: 46, confidence: 88 },
+  {
+    day: 14,
+    dateStr: "Sat 14 Jun",
+    orders: 178,
+    percentage: 48,
+    confidence: 91,
+  },
+  {
+    day: 15,
+    dateStr: "Sun 15 Jun",
+    orders: 192,
+    percentage: 52,
+    confidence: 92,
+  },
+  {
+    day: 16,
+    dateStr: "Mon 16 Jun",
+    orders: 228,
+    percentage: 68,
+    confidence: 94,
+  },
+  {
+    day: 17,
+    dateStr: "Tue 17 Jun",
+    orders: 247,
+    percentage: 80,
+    confidence: 96,
+  },
+  {
+    day: 18,
+    dateStr: "Wed 18 Jun",
+    orders: 231,
+    percentage: 74,
+    confidence: 95,
+  },
+  {
+    day: 19,
+    dateStr: "Thu 19 Jun",
+    orders: 158,
+    percentage: 48,
+    confidence: 90,
+  },
+  {
+    day: 20,
+    dateStr: "Fri 20 Jun",
+    orders: 142,
+    percentage: 42,
+    confidence: 89,
+  },
+  {
+    day: 21,
+    dateStr: "Sat 21 Jun",
+    orders: 215,
+    percentage: 64,
+    confidence: 93,
+  },
+  {
+    day: 22,
+    dateStr: "Sun 22 Jun",
+    orders: 236,
+    percentage: 73,
+    confidence: 94,
+  },
+  {
+    day: 23,
+    dateStr: "Mon 23 Jun",
+    orders: 249,
+    percentage: 78,
+    confidence: 95,
+  },
+  {
+    day: 24,
+    dateStr: "Tue 24 Jun",
+    orders: 265,
+    percentage: 88,
+    confidence: 97,
+  },
+  {
+    day: 25,
+    dateStr: "Wed 25 Jun",
+    orders: 224,
+    percentage: 70,
+    confidence: 92,
+  },
+  {
+    day: 26,
+    dateStr: "Thu 26 Jun",
+    orders: 184,
+    percentage: 53,
+    confidence: 90,
+  },
+  {
+    day: 27,
+    dateStr: "Fri 27 Jun",
+    orders: 168,
+    percentage: 46,
+    confidence: 88,
+  },
 ];
 
 interface DepotDayVehicle {
@@ -83,6 +167,7 @@ const KANDY_DAYS: DepotDayVehicle[] = [
 ];
 
 export default function DispatcherForecastPage() {
+  const [showDatathonModal, setShowDatathonModal] = useState(true);
   const [dateRange, setDateRange] = useState("Next 14 days");
   const [showDateModal, setShowDateModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -102,7 +187,9 @@ export default function DispatcherForecastPage() {
     triggerToast(`Exporting ${format} Demand & Capacity Forecast...`);
     setTimeout(() => {
       setShowExportModal(false);
-      triggerToast(`Export complete: Waypoint_Demand_Forecast_${format.toUpperCase()}.file`);
+      triggerToast(
+        `Export complete: Waypoint_Demand_Forecast_${format.toUpperCase()}.file`,
+      );
     }, 1200);
   };
 
@@ -122,8 +209,6 @@ export default function DispatcherForecastPage() {
         </div>
       )}
 
-      
-
       {/* ========================================================= */}
       {/* 2. MAIN FORECAST CONTENT CONTAINER */}
       {/* ========================================================= */}
@@ -131,12 +216,21 @@ export default function DispatcherForecastPage() {
         {/* SUBHEADER: AI Pill & Title & Actions */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5">
-            {/* Small Top Pill: AI FORECAST · 94% ACCURACY */}
-            <div>
+            {/* Small Top Pill: AI FORECAST & Datathon Notice */}
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] text-[10px] font-bold tracking-wider uppercase">
                 <Sparkles className="w-3 h-3 text-[#D97706]" />
                 <span>AI FORECAST · 94% ACCURACY</span>
               </span>
+              <button
+                type="button"
+                onClick={() => setShowDatathonModal(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 text-[#92400E] border border-amber-200/80 text-[10px] font-semibold transition-colors cursor-pointer"
+                title="Click to view Datathon phase details"
+              >
+                <Info className="w-3 h-3 text-[#D97706]" />
+                <span>Datathon In Progress</span>
+              </button>
             </div>
 
             {/* Main Title & Subtitle */}
@@ -178,7 +272,9 @@ export default function DispatcherForecastPage() {
           <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">Predicted orders</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Predicted orders
+                </span>
                 <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
                   <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                 </div>
@@ -199,7 +295,10 @@ export default function DispatcherForecastPage() {
                   className="flex-1 bg-[#EDE9FE] rounded-xs"
                 />
               ))}
-              <div style={{ height: "100%" }} className="flex-1 bg-[#7C3AED] rounded-xs" />
+              <div
+                style={{ height: "100%" }}
+                className="flex-1 bg-[#7C3AED] rounded-xs"
+              />
             </div>
           </div>
 
@@ -207,7 +306,9 @@ export default function DispatcherForecastPage() {
           <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">Vehicles needed</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Vehicles needed
+                </span>
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                   <Truck className="w-3.5 h-3.5 text-blue-600" />
                 </div>
@@ -228,7 +329,10 @@ export default function DispatcherForecastPage() {
                   className="flex-1 bg-[#D9E8F9] rounded-xs"
                 />
               ))}
-              <div style={{ height: "100%" }} className="flex-1 bg-[#2563EB] rounded-xs" />
+              <div
+                style={{ height: "100%" }}
+                className="flex-1 bg-[#2563EB] rounded-xs"
+              />
             </div>
           </div>
 
@@ -236,7 +340,9 @@ export default function DispatcherForecastPage() {
           <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">Peak day</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Peak day
+                </span>
                 <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <Package className="w-3.5 h-3.5 text-amber-600" />
                 </div>
@@ -257,7 +363,10 @@ export default function DispatcherForecastPage() {
                   className="flex-1 bg-[#FEF3C7] rounded-xs"
                 />
               ))}
-              <div style={{ height: "100%" }} className="flex-1 bg-[#D97706] rounded-xs" />
+              <div
+                style={{ height: "100%" }}
+                className="flex-1 bg-[#D97706] rounded-xs"
+              />
             </div>
           </div>
 
@@ -265,7 +374,9 @@ export default function DispatcherForecastPage() {
           <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">Forecast accuracy</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Forecast accuracy
+                </span>
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
                 </div>
@@ -286,7 +397,10 @@ export default function DispatcherForecastPage() {
                   className="flex-1 bg-[#D1FAE5] rounded-xs"
                 />
               ))}
-              <div style={{ height: "100%" }} className="flex-1 bg-[#10B981] rounded-xs" />
+              <div
+                style={{ height: "100%" }}
+                className="flex-1 bg-[#10B981] rounded-xs"
+              />
             </div>
           </div>
         </div>
@@ -346,8 +460,8 @@ export default function DispatcherForecastPage() {
                           d.confidence >= 95
                             ? "bg-[#EAB308]"
                             : d.confidence >= 92
-                            ? "bg-[#F5C542]"
-                            : "bg-[#FCD34D]"
+                              ? "bg-[#F5C542]"
+                              : "bg-[#FCD34D]"
                         }`}
                       />
                     </div>
@@ -374,9 +488,7 @@ export default function DispatcherForecastPage() {
                 <span className="w-2 h-2 rounded-full bg-[#F5C542]" />
                 <span className="text-slate-600 font-medium">All brands</span>
               </div>
-              <div className="text-slate-400">
-                Darker = higher confidence
-              </div>
+              <div className="text-slate-400">Darker = higher confidence</div>
             </div>
           </div>
 
@@ -469,7 +581,9 @@ export default function DispatcherForecastPage() {
             {/* Bottom Insight */}
             <div className="mt-6 pt-3 border-t border-slate-50 flex items-center justify-between text-[11px] text-slate-400">
               <span>Overall brand mix shift:</span>
-              <span className="font-semibold text-slate-600">+5.7% net volume surge</span>
+              <span className="font-semibold text-slate-600">
+                +5.7% net volume surge
+              </span>
             </div>
           </div>
         </div>
@@ -508,14 +622,15 @@ export default function DispatcherForecastPage() {
                 {/* Relative Bars for Weekdays */}
                 <div className="relative mt-6">
                   {/* Tooltip */}
-                  {hoveredDepotDay && hoveredDepotDay.depot === "Peliyagoda" && (
-                    <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#0F1928] text-white text-[10px] px-2.5 py-1 rounded shadow-md pointer-events-none z-20 flex items-center gap-1.5 border border-white/10">
-                      <span className="font-bold text-[#F5C542]">
-                        {hoveredDepotDay.item.dayName}:
-                      </span>
-                      <span>{hoveredDepotDay.item.needed} vehicles</span>
-                    </div>
-                  )}
+                  {hoveredDepotDay &&
+                    hoveredDepotDay.depot === "Peliyagoda" && (
+                      <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#0F1928] text-white text-[10px] px-2.5 py-1 rounded shadow-md pointer-events-none z-20 flex items-center gap-1.5 border border-white/10">
+                        <span className="font-bold text-[#F5C542]">
+                          {hoveredDepotDay.item.dayName}:
+                        </span>
+                        <span>{hoveredDepotDay.item.needed} vehicles</span>
+                      </div>
+                    )}
 
                   {/* 7 Bars */}
                   <div className="flex items-end justify-between gap-3 sm:gap-5 h-28 px-3 border-b border-slate-100">
@@ -555,9 +670,7 @@ export default function DispatcherForecastPage() {
             <div className="flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold text-slate-900">
-                    Kandy
-                  </div>
+                  <div className="text-sm font-bold text-slate-900">Kandy</div>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold">
                     72% utilization
                   </span>
@@ -614,6 +727,71 @@ export default function DispatcherForecastPage() {
           </div>
         </div>
       </main>
+
+      {/* ========================================================= */}
+      {/* DATATHON PHASE NOTICE MODAL */}
+      {/* ========================================================= */}
+      {showDatathonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-lg p-6 animate-scale-in">
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#FFFBEB] border border-[#FDE68A] flex items-center justify-center text-[#D97706] shadow-[0_0_14px_rgba(245,197,66,0.3)] flex-shrink-0">
+                  <Brain className="w-5 h-5 text-[#D97706]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] text-[10px] font-bold tracking-wider uppercase">
+                      <Sparkles className="w-2.5 h-2.5 text-[#D97706]" />
+                      Datathon Phase
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                      Under Development
+                    </span>
+                  </div>
+                  <h3 className="text-base font-extrabold text-[#0F172A] tracking-tight mt-1">
+                    Demand Forecasting Notice
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDatathonModal(false)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1.5 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3.5">
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                This page will be implemented after the Datathon phase is
+                completed. Since the Datathon phase is still not finished, this
+                page cannot be implemented yet.
+              </p>
+
+              <div className="rounded-xl bg-[#FFFBEB]/80 border border-[#FDE68A] p-4 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-[#D97706] flex-shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-[#92400E] leading-normal font-medium">
+                    The Datathon competition phase is currently active. Demand forecasting and predictive analytics will be deployed once the Datathon phase is officially concluded.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+              <Link
+                href="/dispatcher"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-bold bg-[#F5C542] hover:bg-[#eab308] text-[#0F1928] shadow-sm transition-all text-center flex items-center justify-center gap-1.5"
+              >
+                Back to Dispatcher
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* 6. INTERACTIVE DATE RANGE MODAL */}
@@ -711,7 +889,8 @@ export default function DispatcherForecastPage() {
                     Executive Forecast Summary (PDF)
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    High-level visual charts, depot plans, and brand distributions
+                    High-level visual charts, depot plans, and brand
+                    distributions
                   </div>
                 </div>
               </button>

@@ -8,7 +8,7 @@ import ReportShortfallForm from "../shortfails/report-shortfall-form";
 import type { LoaderManifestDto, LoaderTripSummary } from "../../../lib/types/loader-api";
 import {
   AlertTriangle,
-  BarChart3,
+  // BarChart3,
   Check,
   CheckCircle2,
   Clock,
@@ -26,7 +26,7 @@ const loaderNavItems = [
   { name: "Active Trips", href: "/loader/activeTrips", icon: Truck },
   { name: "Manifests", href: "/loader/manifests", icon: Package },
   { name: "Shortfalls", href: "/loader/shortfails", icon: AlertTriangle },
-  { name: "Reports", href: "/loader/reports", icon: BarChart3 },
+  // { name: "Reports", href: "/loader/reports", icon: BarChart3 },
 ];
 
 const metricBars = {
