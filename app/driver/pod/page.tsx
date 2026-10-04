@@ -22,6 +22,7 @@ export default function DriverPodPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPod, setSelectedPod] = useState<DriverStopDto | null>(null);
   const [notif, setNotif] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"current" | "all">("current");
 
   const notify = (msg: string) => {
     setNotif(msg);
@@ -60,10 +61,20 @@ export default function DriverPodPage() {
   }, []);
 
   const trip = activeData?.trip;
-  const completedCount = completedStops.length;
-  const totalStops = trip?.stopsTotal || completedCount || 5;
-  const remainingCount = Math.max(0, totalStops - completedCount);
-  const totalCartons = completedStops.reduce((sum, s) => sum + (s.cartons || 0), 0);
+  const currentTripId = trip?.tripId;
+
+  // Filter based on selected view mode
+  const currentTripStops = currentTripId
+    ? completedStops.filter((s) => s.tripId === currentTripId)
+    : completedStops;
+  const displayedStops = viewMode === "current" ? currentTripStops : completedStops;
+
+  const completedCount = displayedStops.length;
+  const totalStops = viewMode === "current" ? (trip?.stopsTotal || completedCount || 1) : completedStops.length;
+  const remainingCount = viewMode === "current" ? Math.max(0, totalStops - completedCount) : 0;
+  const totalCartons = displayedStops.reduce((sum, s) => sum + (s.cartons || 0), 0);
+
+  const isTripNotStarted = trip && (trip.status === "PLANNED" || trip.status === "LOADING");
 
   return (
     <div className="min-h-screen bg-[#ECEEF5] dark:bg-[#07090e] text-[#0F1020] dark:text-white/90 font-sans">
@@ -85,6 +96,7 @@ export default function DriverPodPage() {
                 </h3>
                 <p className="text-[10px] text-[#7B7B9D]">
                   {selectedPod.outletName} · Stop {selectedPod.stopSequence}
+                  {selectedPod.tripId && ` · ${selectedPod.tripId}`}
                 </p>
               </div>
               <Button variant="secondary" size="compact" onClick={() => setSelectedPod(null)}>
@@ -133,14 +145,20 @@ export default function DriverPodPage() {
         {/* Page header */}
         <DriverPageHeader
           title="Completed deliveries"
-          subtitle={`Trip ${trip?.tripId || "TRP-20261001-01"} · ${completedCount} of ${totalStops} stops completed`}
+          subtitle={
+            viewMode === "current"
+              ? `Trip ${currentTripId || "Pending"} · ${completedCount} of ${totalStops} stops completed${
+                  isTripNotStarted ? " (Not yet departed)" : ""
+                }`
+              : `Driver POD Archive · ${completedStops.length} total deliveries verified across all runs`
+          }
           roleBadge={
             <RoleHeaderBadge>
               <CheckCircle2 className="w-3 h-3" /> COMPLETED STOPS
             </RoleHeaderBadge>
           }
         >
-          <SyncBadge syncedLabel={`${completedCount} synced`} />
+          <SyncBadge syncedLabel={`${displayedStops.length} synced`} />
           <Link href="/driver/stops">
             <Button variant="primary" size="compact">
               <MapPin className="w-3.5 h-3.5" /> Continue Deliveries
@@ -148,13 +166,42 @@ export default function DriverPodPage() {
           </Link>
         </DriverPageHeader>
 
+        {/* View toggle tabs */}
+        <div className="flex items-center gap-2 border-b border-black/[0.08] dark:border-white/[0.08] pb-2">
+          <button
+            type="button"
+            onClick={() => setViewMode("current")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              viewMode === "current"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-[#7B7B9D] hover:text-[#0F1020] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+            }`}
+          >
+            Current Trip {currentTripId ? `(${currentTripId})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              viewMode === "all"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-[#7B7B9D] hover:text-[#0F1020] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+            }`}
+          >
+            <span>All Trips Archive</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10">
+              {completedStops.length}
+            </span>
+          </button>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={<CheckCircle2 className="w-4 h-4" />}
-            label="Stops completed"
-            value={`${completedCount} / ${totalStops}`}
-            note={`${remainingCount} remaining`}
+            label={viewMode === "current" ? "Stops completed" : "Total Verified PODs"}
+            value={viewMode === "current" ? `${completedCount} / ${totalStops}` : `${completedCount}`}
+            note={viewMode === "current" ? `${remainingCount} remaining` : "Across all completed trips"}
             tone="green"
             bars={[]}
           />
@@ -169,16 +216,22 @@ export default function DriverPodPage() {
           <StatCard
             icon={<Clock className="w-4 h-4" />}
             label="Departure Time"
-            value={trip?.actualDepartureTime ? new Date(trip.actualDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "04:05"}
-            note="On schedule"
+            value={
+              trip?.actualDepartureTime
+                ? new Date(trip.actualDepartureTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : isTripNotStarted
+                ? trip?.plannedDepartureTime ? `${trip.plannedDepartureTime.slice(0, 5)} (Est)` : "Not departed"
+                : "04:05"
+            }
+            note={isTripNotStarted ? "Awaiting depot exit" : "On schedule"}
             tone="purple"
             bars={[]}
           />
           <StatCard
             icon={<Route className="w-4 h-4" />}
             label="Odometer start"
-            value={`${trip?.odometerStartKm || 48250} km`}
-            note="Logged at depot gate"
+            value={trip?.odometerStartKm ? `${trip.odometerStartKm} km` : isTripNotStarted ? "Pending" : "48250 km"}
+            note={trip?.odometerStartKm ? "Logged at depot gate" : "To record at gate"}
             tone="orange"
             bars={[]}
           />
@@ -187,7 +240,7 @@ export default function DriverPodPage() {
         {/* Completed deliveries table */}
         <Panel>
           <PanelHeader
-            title="Completed deliveries & POD Archive"
+            title={viewMode === "current" ? "Current Trip Deliveries & PODs" : "Completed Deliveries & POD Archive"}
             subtitle="Proof of delivery status · All signatures and cargo receipts verified"
             badge={
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(16,185,129,.12)] text-[#10B981] text-[8px] font-bold uppercase tracking-wider border border-emerald-500/20">
@@ -197,16 +250,37 @@ export default function DriverPodPage() {
             }
           />
           <div className="overflow-x-auto">
-            {completedStops.length === 0 ? (
+            {displayedStops.length === 0 ? (
               <div className="p-12 text-center space-y-3">
                 <p className="text-sm font-semibold text-[#7B7B9D]">
-                  No stops completed yet for this run.
+                  {viewMode === "current"
+                    ? `No stops completed yet for trip ${currentTripId || ""}.${
+                        isTripNotStarted ? " This trip has not departed yet." : ""
+                      }`
+                    : "No completed deliveries found."}
                 </p>
-                <Link href="/driver/stops">
-                  <Button variant="primary">
-                    Start Stop Deliveries <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                {viewMode === "current" && completedStops.length > 0 && (
+                  <Button variant="secondary" size="compact" onClick={() => setViewMode("all")}>
+                    View Past Deliveries Archive ({completedStops.length})
                   </Button>
-                </Link>
+                )}
+                {isTripNotStarted ? (
+                  <div className="pt-2">
+                    <Link href="/driver/departure">
+                      <Button variant="primary">
+                        Start Trip Departure Sign-off <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <Link href="/driver/stops">
+                      <Button variant="primary">
+                        Start Stop Deliveries <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             ) : (
               <table className="w-full text-xs font-sans border-collapse">
@@ -225,17 +299,24 @@ export default function DriverPodPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
-                  {completedStops.map((s, idx) => (
+                  {displayedStops.map((s, idx) => (
                     <tr key={s.stopId || idx} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
                       <td className="px-4 py-3">
                         <StopNumberCell n={s.stopSequence || idx + 1} status="done" />
                       </td>
-                      <td className="px-4 py-3 font-semibold whitespace-nowrap">{s.outletName}</td>
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                        <div>{s.outletName}</div>
+                        {viewMode === "all" && s.tripId && (
+                          <div className="text-[9px] font-mono text-[#7B7B9D]">{s.tripId}</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-[10px] text-[#7B7B9D] max-w-[180px] truncate">
                         {s.address}
                       </td>
                       <td className="px-4 py-3 font-mono text-[10px] text-[#7B7B9D]">
-                        {s.deliveredAt ? new Date(s.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : s.plannedArrivalTime?.slice(0, 5) || "04:25"}
+                        {s.deliveredAt
+                          ? new Date(s.deliveredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : s.plannedArrivalTime?.slice(0, 5) || "04:25"}
                       </td>
                       <td className="px-4 py-3 font-semibold">{s.cartons}</td>
                       <td className="px-4 py-3 text-[10px] text-[#7B7B9D]">

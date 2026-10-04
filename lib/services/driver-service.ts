@@ -419,6 +419,7 @@ export class DriverService {
         const weight = Number(r.order_weight_kg || 0);
         const cartons = Math.max(1, Math.round(weight / 18));
         return {
+          tripId: r.trip_id,
           stopId: r.stop_id,
           stopSequence: Number(r.stop_sequence),
           orderId: r.order_id,
@@ -832,6 +833,7 @@ export class DriverService {
         const weight = Number(r.order_weight_kg || 0);
         const cartons = Math.max(1, Math.round(weight / 18));
         return {
+          tripId: r.trip_id,
           stopId: r.stop_id,
           stopSequence: Number(r.stop_sequence),
           orderId: r.order_id,

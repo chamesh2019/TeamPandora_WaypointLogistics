@@ -42,6 +42,7 @@ export interface DriverActiveTripDto {
 }
 
 export interface DriverStopDto {
+  tripId?: string;
   stopId: string;
   stopSequence: number;
   orderId: string;
