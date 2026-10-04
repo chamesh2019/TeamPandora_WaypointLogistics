@@ -6,7 +6,7 @@ import { Button, Panel } from "../../../components/design-system";
 import type { LoaderReportDto } from "../../../lib/types/loader-api";
 import {
   AlertTriangle,
-  BarChart3,
+  // BarChart3,
   LayoutGrid,
   Loader2,
   Package,
@@ -19,7 +19,7 @@ const loaderNavItems = [
   { name: "Active Trips", href: "/loader/activeTrips", icon: Truck },
   { name: "Manifests", href: "/loader/manifests", icon: Package },
   { name: "Shortfalls", href: "/loader/shortfails", icon: AlertTriangle },
-  { name: "Reports", href: "/loader/reports", icon: BarChart3 },
+  // { name: "Reports", href: "/loader/reports", icon: BarChart3 },
 ];
 
 export default function LoaderReportsPage() {
@@ -82,11 +82,13 @@ export default function LoaderReportsPage() {
     },
   ];
 
-  const weeklyData = reports?.weeklyLoadingData && reports.weeklyLoadingData.length > 0
-    ? reports.weeklyLoadingData
-    : [];
+  const weeklyData =
+    reports?.weeklyLoadingData && reports.weeklyLoadingData.length > 0
+      ? reports.weeklyLoadingData
+      : [];
 
-  const maxValue = weeklyData.length > 0 ? Math.max(...weeklyData.map((d) => d.value), 1) : 1;
+  const maxValue =
+    weeklyData.length > 0 ? Math.max(...weeklyData.map((d) => d.value), 1) : 1;
 
   return (
     <>
@@ -117,15 +119,24 @@ export default function LoaderReportsPage() {
               disabled={isLoading}
               className="px-3 py-2 text-[12px] font-semibold flex items-center gap-1.5"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`}
+              />
               Refresh
             </Button>
           </div>
 
           {error && (
             <div className="mb-5 rounded-[12px] bg-red-50 p-4 border border-red-200 flex items-center justify-between">
-              <span className="text-[12px] font-medium text-red-600">{error}</span>
-              <Button type="button" variant="secondary" onClick={fetchReports} className="text-xs">
+              <span className="text-[12px] font-medium text-red-600">
+                {error}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={fetchReports}
+                className="text-xs"
+              >
                 Retry
               </Button>
             </div>
@@ -175,11 +186,17 @@ export default function LoaderReportsPage() {
                 </div>
               ) : (
                 <div className="px-5 py-8">
-                  <div className="flex items-end justify-between gap-4" style={{ height: 200 }}>
+                  <div
+                    className="flex items-end justify-between gap-4"
+                    style={{ height: 200 }}
+                  >
                     {weeklyData.map((item) => {
                       const pct = Math.max(6, (item.value / maxValue) * 100);
                       return (
-                        <div key={item.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                        <div
+                          key={item.day}
+                          className="flex-1 flex flex-col items-center gap-2 h-full justify-end"
+                        >
                           {/* Value */}
                           <span className="text-[11px] font-semibold text-[#7B7B9D]">
                             {item.value}

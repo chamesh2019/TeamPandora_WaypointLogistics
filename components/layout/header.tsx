@@ -337,7 +337,7 @@ export default function Header({
                   <span>My Profile</span>
                 </button>
 
-                <button
+                {/* <button
                   type="button"
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5"
                   onClick={() => {
@@ -359,7 +359,7 @@ export default function Header({
                 >
                   <History className="h-3.5 w-3.5 text-slate-400" />
                   <span>Login History</span>
-                </button>
+                </button> */}
 
                 <div className="my-1 h-px bg-white/5" />
 
