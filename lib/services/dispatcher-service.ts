@@ -1659,7 +1659,7 @@ export class DispatcherService {
         WHERE ($1::text IS NULL OR t.depot_id = $1)
       `;
 
-      // 4. Order planning queue
+      // 4. Order planning queue (strictly unallocated orders)
       const queueQuery = `
         SELECT 
           o.order_id,
@@ -1674,14 +1674,14 @@ export class DispatcherService {
           o.order_volume_m3,
           o.priority_score,
           o.consecutive_skips,
-          o.lifecycle_status,
-          ts.trip_id
+          o.lifecycle_status
         FROM orders o
         JOIN outlets ot ON o.outlet_id = ot.outlet_id
         LEFT JOIN trip_stops ts ON o.order_id = ts.order_id
         WHERE ($1::text IS NULL OR ot.depot_id = $1)
+          AND ts.trip_id IS NULL
+          AND o.lifecycle_status IN ('SUBMITTED', 'CONFIRMED', 'DEFERRED')
         ORDER BY 
-          (CASE WHEN ts.trip_id IS NULL THEN 0 ELSE 1 END) ASC,
           o.priority_score DESC,
           o.order_date ASC
         LIMIT 25
@@ -1811,7 +1811,9 @@ export class DispatcherService {
         return {
           id: r.order_id,
           orderId: r.order_id,
-          outlet: r.contact_name ? `${r.contact_name}` : `${r.district_id || "Outlet"} (${brand})`,
+          outlet: r.contact_name
+            ? `${r.contact_name} (${brand} · ${r.district_id || "Colombo"})`
+            : `${r.outlet_id} · ${brand} (${r.district_id || "Colombo"})`,
           outletId: r.outlet_id,
           brand,
           district: r.district_id || "Colombo",
@@ -1826,17 +1828,6 @@ export class DispatcherService {
           status: r.lifecycle_status,
         };
       });
-
-      if (queue.length === 0) {
-        queue = [
-          { id: "OUT-104", orderId: "OUT-104", outlet: "Cargills - Nugegoda", brand: "Fresh", district: "Colombo", temperature: "Chilled", weight: "820 kg", volume: "6.4 m³", priority: "High" },
-          { id: "OUT-103", orderId: "OUT-103", outlet: "Keells - Rajagiriya", brand: "Fresh", district: "Colombo", temperature: "Chilled", weight: "610 kg", volume: "5.1 m³", priority: "High" },
-          { id: "OUT-102", orderId: "OUT-102", outlet: "Cargills - Wellawatte", brand: "Fresh", district: "Colombo", temperature: "Ambient", weight: "440 kg", volume: "4.2 m³", priority: "Medium" },
-          { id: "OUT-101", orderId: "OUT-101", outlet: "Keells - Bambalapitiya", brand: "Style", district: "Colombo", temperature: "Ambient", weight: "320 kg", volume: "3.2 m³", priority: "Medium" },
-          { id: "OUT-098", orderId: "OUT-098", outlet: "Cargills - Kandy City", brand: "Fresh", district: "Kandy", temperature: "Chilled", weight: "910 kg", volume: "7.1 m³", priority: "Low" },
-          { id: "OUT-097", orderId: "OUT-097", outlet: "Arpico - Peradeniya", brand: "Style", district: "Kandy", temperature: "Ambient", weight: "280 kg", volume: "2.8 m³", priority: "Low" },
-        ];
-      }
 
       // Live Exceptions
       const exceptions: DispatcherOverviewExceptionItem[] = [];

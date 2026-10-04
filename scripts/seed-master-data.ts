@@ -87,7 +87,13 @@ VALUES
   ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
-  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED')
+  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED'),
+  ('ORD-20261001-009', 'OUT005', '2026-10-01', '2026-09-30 16:15:00', FALSE, 'chilled', 40, 450.00, 3.200, 8.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-010', 'OUT006', '2026-10-01', '2026-09-30 16:20:00', FALSE, 'ambient', 65, 720.00, 4.800, 7.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-011', 'OUT015', '2026-10-01', '2026-09-30 14:40:00', FALSE, 'ambient', 50, 380.00, 6.000, 6.50, FALSE, 0, 2, 'CONFIRMED'),
+  ('ORD-20261001-012', 'OUT016', '2026-10-01', '2026-09-30 15:10:00', FALSE, 'ambient', 75, 510.00, 7.500, 6.00, FALSE, 0, 2, 'CONFIRMED'),
+  ('ORD-20261001-013', 'OUT025', '2026-10-01', '2026-09-30 13:30:00', FALSE, 'chilled', 55, 620.00, 3.800, 8.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-014', 'OUT026', '2026-10-01', '2026-09-30 14:00:00', FALSE, 'ambient', 80, 890.00, 5.500, 7.50, FALSE, 0, 1, 'CONFIRMED')
 ON CONFLICT (order_id) DO UPDATE SET
   outlet_id = EXCLUDED.outlet_id,
   order_date = EXCLUDED.order_date,
@@ -114,7 +120,13 @@ VALUES
   ('itm-011', 'ORD-20261001-007', 'SKU-APP-01', 'Hanging Garment Packs (Casual)', 70, 70, 70, 70, 7.50, 0.150, FALSE),
   ('itm-012', 'ORD-20261001-007', 'SKU-APP-02', 'Footwear Boxes Assorted', 50, 50, 50, 50, 8.50, 0.150, FALSE),
   ('itm-013', 'ORD-20261001-008', 'SKU-TECH-01', 'Refrigerator 320L Double Door', 6, 6, 6, 6, 180.00, 0.850, FALSE),
-  ('itm-014', 'ORD-20261001-008', 'SKU-TECH-02', 'Automatic Washing Machine 8kg', 8, 8, 8, 8, 140.00, 0.425, FALSE)
+  ('itm-014', 'ORD-20261001-008', 'SKU-TECH-02', 'Automatic Washing Machine 8kg', 8, 8, 8, 8, 140.00, 0.425, FALSE),
+  ('itm-015', 'ORD-20261001-009', 'SKU-DAIRY-01', 'Fresh Milk 1L Crates (12 pk)', 40, 0, 0, 0, 11.25, 0.080, TRUE),
+  ('itm-016', 'ORD-20261001-010', 'SKU-DRY-01', 'Premium White Rice 10kg Bag', 65, 0, 0, 0, 11.08, 0.074, FALSE),
+  ('itm-017', 'ORD-20261001-011', 'SKU-APP-01', 'Hanging Garment Packs (Casual)', 50, 0, 0, 0, 7.60, 0.120, FALSE),
+  ('itm-018', 'ORD-20261001-012', 'SKU-APP-02', 'Footwear Boxes Assorted', 75, 0, 0, 0, 6.80, 0.100, FALSE),
+  ('itm-019', 'ORD-20261001-013', 'SKU-PROD-01', 'Fresh Vegetables Mixed Crate', 55, 0, 0, 0, 11.27, 0.069, TRUE),
+  ('itm-020', 'ORD-20261001-014', 'SKU-BEV-01', 'Bottled Mineral Water 1.5L (12 pk)', 80, 0, 0, 0, 11.13, 0.069, FALSE)
 ON CONFLICT (item_id) DO UPDATE SET
   quantity_ordered = EXCLUDED.quantity_ordered,
   quantity_loaded = EXCLUDED.quantity_loaded,

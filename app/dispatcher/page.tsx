@@ -390,16 +390,23 @@ export default function DispatcherPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/[0.04]">
-                    {queue.map((item) => (
-                      <tr
-                        key={item.id}
-                        onClick={() => setSelectedOrder(item)}
-                        className="hover:bg-slate-50/80 transition-colors text-xs cursor-pointer group"
-                      >
-                        {/* Order ID */}
-                        <td className="py-3 px-3 font-medium text-[#0F1020] text-[11px] whitespace-nowrap">
-                          {item.id}
+                    {queue.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-xs text-[#7B7B9D]">
+                          No unallocated orders found. All confirmed orders have been allocated to trips.
                         </td>
+                      </tr>
+                    ) : (
+                      queue.map((item) => (
+                        <tr
+                          key={item.id}
+                          onClick={() => setSelectedOrder(item)}
+                          className="hover:bg-slate-50/80 transition-colors text-xs cursor-pointer group"
+                        >
+                          {/* Order ID */}
+                          <td className="py-3 px-3 font-medium text-[#0F1020] text-[11px] whitespace-nowrap">
+                            {item.id}
+                          </td>
 
                         {/* Outlet */}
                         <td className="py-3 px-3 font-bold text-[#0F1020] text-xs whitespace-nowrap group-hover:text-blue-600 transition-colors">
@@ -469,7 +476,7 @@ export default function DispatcherPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
