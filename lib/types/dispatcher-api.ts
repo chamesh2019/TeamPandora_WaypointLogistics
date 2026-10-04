@@ -66,6 +66,8 @@ export interface DispatcherAuthContext {
 export interface AllocationOrderItemDto {
   id: string;
   orderId: string;
+  outletId?: string;
+  outlet_id?: string;
   store: string;
   brand: "Fresh" | "Style" | "Tech";
   district: string;
@@ -169,4 +171,5 @@ export interface DispatcherTripDto {
 
 export * from "./dispatcher-fleet";
 export * from "./dispatcher-users";
+export * from "./dispatcher-overview";
 

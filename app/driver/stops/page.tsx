@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { MapPin, Clock, Snowflake, Package, Map, Phone, Check, AlertTriangle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { MapPin, Clock, Snowflake, Package, Map, Phone, Check, AlertTriangle, ArrowRight } from "lucide-react";
 import {
   Button,
   RoleHeaderBadge,
@@ -12,82 +13,273 @@ import {
   Textarea,
   FieldLabel,
 } from "../../../components/design-system";
-import { SyncBadge, SyncBadgeToggle } from "../../../components/driver/sync-badge";
+import { SyncBadge } from "../../../components/driver/sync-badge";
 import { DriverBadge } from "../../../components/driver/driver-badge";
 import { DriverPageHeader } from "../../../components/driver/driver-page-header";
-import type { StopStatus } from "../../../components/driver/stop-number-cell";
+import type { DriverCurrentStopDto, DriverStopDto } from "@/lib/types/driver-api";
+import { OfflineStore } from "@/lib/offline/offline-store";
 
-const tripDetails = {
-  driverName: "Nimal Perera",
-  tripId: "TRP-250613-04",
-  vehicle: "WP NC-4872",
-  vehicleType: "Reefer truck · Chilled",
-  depot: "Peliyagoda",
-  departure: "03:30",
-  estReturn: "12:45",
-  status: "On route",
-  statusNote: "Running 4 min ahead",
-};
-
-const distanceDetails = {
-  value: "0.0 km",
-  note: "On site · GPS confirmed",
-};
-
-interface Stop {
-  n: number;
-  store: string;
-  addr: string;
-  time: string;
-  eta: string;
-  cartons: number;
-  status: StopStatus;
-  window: string;
-  dock: string;
-  cartonsType: string;
-  contact: string;
-  phone: string;
-  temperature: string;
-  weight: string;
-}
-
-const stops: Stop[] = [
-  { n: 1, store: "Pettah Fresh", addr: "Manning Market Road, Pettah", time: "04:12", eta: "Done", cartons: 14, status: "done", window: "04:00 – 05:00", dock: "Front", cartonsType: "14 mixed cartons", contact: "Manager", phone: "+94 77 111 2222", temperature: "Ambient", weight: "250 kg" },
-  { n: 2, store: "Maradana Fresh", addr: "Baseline Road, Maradana", time: "04:58", eta: "Done", cartons: 20, status: "done", window: "04:30 – 05:30", dock: "Rear", cartonsType: "20 chilled cartons", contact: "Sunil", phone: "+94 77 333 4444", temperature: "Chilled", weight: "350 kg" },
-  { n: 3, store: "Bambalapitiya Fresh", addr: "Galle Road, Bambalapitiya", time: "05:44", eta: "Done", cartons: 16, status: "done", window: "05:00 – 06:00", dock: "Side", cartonsType: "16 ambient cartons", contact: "Kamal", phone: "+94 77 555 6666", temperature: "Ambient", weight: "280 kg" },
-  { n: 4, store: "Cargills Food City — Nugegoda", addr: "142 High Level Road, Nugegoda", time: "07:18", eta: "07:18 →", cartons: 18, status: "current", window: "07:30 – 08:05", dock: "Rear dock · Gate 2", cartonsType: "18 chilled cartons", contact: "Suresh Wickrama", phone: "+94 77 234 5678", temperature: "Chilled (−2°C to +4°C)", weight: "324 kg" },
-  { n: 5, store: "Keells Super · Rajagiriya", addr: "Rajagiriya Town Centre", time: "07:46", eta: "07:46", cartons: 12, status: "upcoming", window: "07:30 – 08:30", dock: "Loading Bay", cartonsType: "12 mixed cartons", contact: "Ruwan", phone: "+94 77 777 8888", temperature: "Ambient", weight: "200 kg" },
-];
-
-type DeliveryState = "transit" | "arrived" | "pod" | "done";
+type DeliveryState = "transit" | "arrived" | "pod" | "done" | "failed";
 
 export default function DriverCurrentStopPage() {
-  const [state, setState] = useState<DeliveryState>("transit");
-  const [syncing, setSyncing] = useState(false);
+  const [currentData, setCurrentData] = useState<DriverCurrentStopDto | null>(() => {
+    return OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+  });
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [state, setState] = useState<DeliveryState>(() => {
+    const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+    const stop = cached?.currentStop;
+    if (stop?.status === "ARRIVED") return "arrived";
+    if (stop?.status === "DELIVERED") return "done";
+    if (stop?.status === "FAILED") return "failed";
+    return "transit";
+  });
   const [podName, setPodName] = useState("");
   const [podRemarks, setPodRemarks] = useState("");
   const [podSigned, setPodSigned] = useState(false);
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [failReason, setFailReason] = useState("OUTLET_CLOSED");
+  const [failNotes, setFailNotes] = useState("");
   const [notif, setNotif] = useState<string | null>(null);
-
-  const currentStop = stops.find(s => s.status === "current") || stops[0];
-  const nextStop = stops.find(s => s.status === "upcoming");
 
   const notify = (msg: string) => {
     setNotif(msg);
     window.setTimeout(() => setNotif(null), 3500);
   };
 
-  const triggerSync = () => {
-    setSyncing(true);
-    window.setTimeout(() => setSyncing(false), 2200);
+  const loadCurrentStop = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/driver/stops/current");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCurrentData(json.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.CURRENT_STOP, json.data);
+          const stop = json.data.currentStop;
+          if (stop) {
+            if (stop.status === "ARRIVED") setState("arrived");
+            else if (stop.status === "DELIVERED") setState("done");
+            else if (stop.status === "FAILED") setState("failed");
+            else setState("transit");
+          }
+        }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+        if (cached) {
+          setCurrentData(cached);
+          notify("Offline mode: Using cached stop details");
+        }
+      }
+    } catch {
+      const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+      if (cached) {
+        setCurrentData(cached);
+        notify("Offline mode: Using cached stop details");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const heroVariant = state === "done" ? "delivered" : state === "arrived" ? "in-progress" : "upcoming";
-  const heroLabel   = state === "done" ? "Delivered"  : state === "arrived" ? "Arrived"     : "In transit";
+  useEffect(() => {
+    loadCurrentStop();
+
+    const handleSynced = () => {
+      loadCurrentStop();
+    };
+    window.addEventListener("waypoint:synced", handleSynced);
+    return () => window.removeEventListener("waypoint:synced", handleSynced);
+  }, []);
+
+  const currentStop: DriverStopDto = currentData?.currentStop || {
+    stopId: "STP-001",
+    stopSequence: 1,
+    orderId: "ORD-20261001-001",
+    outletId: "OUT001",
+    outletName: "Cargills Food City — Pettah",
+    address: "12 Market Street, Pettah",
+    brandId: "BRAND_FRESH",
+    districtId: "Colombo",
+    dockType: "Front street dock",
+    parkingConstraint: "normal",
+    windowOpenTime: "04:00:00",
+    windowCloseTime: "08:05:00",
+    contactName: "Sunil Jayasuriya",
+    contactPhone: "+94 77 123 4567",
+    plannedArrivalTime: "07:18:00",
+    isLate: false,
+    status: "PENDING",
+    cartons: 18,
+    cartonsType: "18 chilled cartons",
+    weightKg: 324,
+    volumeM3: 2.2,
+    tempClass: "chilled",
+  };
+
+  const nextStop = currentData?.nextStop;
+
+  const handleArrive = async () => {
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/driver/stops/${currentStop.stopId}/arrive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientTimestamp: timestamp,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setState("arrived");
+        notify(`Arrival recorded at ${currentStop.outletName}. GPS logged.`);
+      } else {
+        // Enqueue offline action on server rejection/offline
+        OfflineStore.recordOfflineArrival(tripId, currentStop.stopId, timestamp);
+        setState("arrived");
+        notify("Arrival saved locally. Will sync automatically.");
+      }
+    } catch {
+      OfflineStore.recordOfflineArrival(tripId, currentStop.stopId, timestamp);
+      setState("arrived");
+      notify("Offline: Arrival saved locally. Will sync automatically.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmitPod = async () => {
+    if (!podName || !podSigned) {
+      notify("Please enter receiver name and capture signature.");
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+    const signature = "data:image/svg+xml;base64,PHN2Zz5zaWduYXR1cmU8L3N2Zz4=";
+
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/driver/stops/${currentStop.stopId}/pod`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientName: podName,
+          signatureUrl: signature,
+          notes: podRemarks,
+          clientTimestamp: timestamp,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setState("done");
+        notify("POD submitted! Stop marked as Delivered.");
+      } else {
+        OfflineStore.recordOfflinePod({
+          tripId,
+          stopId: currentStop.stopId,
+          recipientName: podName,
+          signatureUrl: signature,
+          notes: podRemarks,
+          cartons: currentStop.cartons,
+          clientTimestamp: timestamp,
+        });
+        setState("done");
+        notify("POD saved to offline storage! Will auto-sync.");
+      }
+    } catch {
+      OfflineStore.recordOfflinePod({
+        tripId,
+        stopId: currentStop.stopId,
+        recipientName: podName,
+        signatureUrl: signature,
+        notes: podRemarks,
+        cartons: currentStop.cartons,
+        clientTimestamp: timestamp,
+      });
+      setState("done");
+      notify("Offline: POD saved to offline storage! Will auto-sync.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleFailStop = async () => {
+    if (!failNotes || failNotes.trim().length < 10) {
+      notify("Please enter detailed reason notes (min 10 chars).");
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/driver/stops/${currentStop.stopId}/fail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reasonCode: failReason,
+          driverNotes: failNotes,
+          clientTimestamp: timestamp,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setState("failed");
+        setShowFailModal(false);
+        notify("Stop marked as unable to deliver. Deferral logged.");
+      } else {
+        OfflineStore.recordOfflineFailure({
+          tripId,
+          stopId: currentStop.stopId,
+          reasonCode: failReason,
+          driverNotes: failNotes,
+          clientTimestamp: timestamp,
+        });
+        setState("failed");
+        setShowFailModal(false);
+        notify("Failure report saved locally. Will sync automatically.");
+      }
+    } catch {
+      OfflineStore.recordOfflineFailure({
+        tripId,
+        stopId: currentStop.stopId,
+        reasonCode: failReason,
+        driverNotes: failNotes,
+        clientTimestamp: timestamp,
+      });
+      setState("failed");
+      setShowFailModal(false);
+      notify("Offline: Failure report saved locally. Will sync automatically.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const heroVariant =
+    state === "done"
+      ? "delivered"
+      : state === "arrived"
+      ? "in-progress"
+      : state === "failed"
+      ? "open"
+      : "upcoming";
+  const heroLabel =
+    state === "done"
+      ? "Delivered"
+      : state === "arrived"
+      ? "Arrived"
+      : state === "failed"
+      ? "Unable to Deliver"
+      : "In transit";
 
   return (
     <div className="min-h-screen bg-[#ECEEF5] dark:bg-[#07090e] text-[#0F1020] dark:text-white/90 font-sans">
-
       {/* Toast */}
       {notif && (
         <div className="fixed top-20 right-4 z-50 bg-[#0F1928] text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl border border-white/10 max-w-xs">
@@ -95,57 +287,144 @@ export default function DriverCurrentStopPage() {
         </div>
       )}
 
+      {/* Failure Exception Modal */}
+      {showFailModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#ECEEF5] dark:bg-[#0F121C] border border-black/[0.08] dark:border-white/[0.08] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              Report Delivery Failure Exception [FORM-DRV-04]
+            </div>
+            <p className="text-xs text-[#7B7B9D]">
+              Flag stop inability to deliver. Order will be automatically queued for deferral and redelivery.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <FieldLabel>Failure Reason *</FieldLabel>
+                <select
+                  value={failReason}
+                  onChange={(e) => setFailReason(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-black/[0.1] dark:border-white/[0.1] bg-white dark:bg-[#161926] p-2.5"
+                >
+                  <option value="OUTLET_CLOSED">Store closed / shutter locked</option>
+                  <option value="REFUSED_BY_STORE">Refused by store staff</option>
+                  <option value="ACCESS_BLOCKED">Access blocked / no parking</option>
+                  <option value="BREAKDOWN">Vehicle breakdown / road obstruction</option>
+                  <option value="TEMPERATURE_ABUSE">Temperature abuse / cargo damaged</option>
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Driver Explanation Notes *</FieldLabel>
+                <Textarea
+                  placeholder="Explain why delivery could not be completed (min 10 characters)..."
+                  rows={3}
+                  value={failNotes}
+                  onChange={(e) => setFailNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setShowFailModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={actionLoading}
+                onClick={handleFailStop}
+                className="font-bold"
+              >
+                {actionLoading ? "Submitting…" : "Confirm Failure & Queue Deferral"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Page header */}
         <DriverPageHeader
-          title={`Stop ${currentStop.n} of ${stops.length} · ${currentStop.store.split(" — ")[0].split(" · ")[0]}`}
-          subtitle={`Trip ${tripDetails.tripId} · Vehicle ${tripDetails.vehicle}`}
+          title={`Stop ${currentStop.stopSequence} · ${currentStop.outletName}`}
+          subtitle={`Trip ${currentData?.tripId || "TRP-20261001-01"} · Outlet ${currentStop.outletId}`}
           roleBadge={
             <RoleHeaderBadge>
               <MapPin className="w-3 h-3" /> CURRENT STOP
             </RoleHeaderBadge>
           }
         >
-          <SyncBadge syncing={syncing} onClick={triggerSync} />
+          <SyncBadge />
           <DriverBadge variant={heroVariant} label={heroLabel} showDot />
         </DriverPageHeader>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={<Clock className="w-4 h-4" />}      label="Delivery window" value={state === "done" ? "Done" : "00:47"} note={`Closes at ${currentStop.window.split(" – ")[1] || "08:05"}`}         tone="orange" bars={[]} />
-          <StatCard icon={<Snowflake className="w-4 h-4" />}  label="Temperature"     value={currentStop.temperature.includes("Chilled") ? "−2°C" : "N/A"}  note={`${currentStop.temperature.split(" ")[0]} · Within range`}  tone="blue"   bars={[]} />
-          <StatCard icon={<Package className="w-4 h-4" />}    label="Cartons"         value={currentStop.cartons.toString()}    note={`${currentStop.weight} · ${currentStop.temperature.split(" ")[0]}`}        tone="green"  bars={[]} />
-          <StatCard icon={<MapPin className="w-4 h-4" />}     label="Distance"        value={distanceDetails.value} note={distanceDetails.note} tone="purple" bars={[]} />
+          <StatCard
+            icon={<Clock className="w-4 h-4" />}
+            label="Delivery window"
+            value={currentStop.windowCloseTime?.slice(0, 5) || "08:05"}
+            note={`Opens at ${currentStop.windowOpenTime?.slice(0, 5) || "04:00"}`}
+            tone="orange"
+            bars={[]}
+          />
+          <StatCard
+            icon={<Snowflake className="w-4 h-4" />}
+            label="Temperature"
+            value={currentStop.tempClass === "chilled" ? "−2°C to 4°C" : "Ambient"}
+            note="Sensor in range"
+            tone="blue"
+            bars={[]}
+          />
+          <StatCard
+            icon={<Package className="w-4 h-4" />}
+            label="Cartons"
+            value={currentStop.cartons.toString()}
+            note={`${currentStop.weightKg} kg · ${currentStop.volumeM3} m³`}
+            tone="green"
+            bars={[]}
+          />
+          <StatCard
+            icon={<MapPin className="w-4 h-4" />}
+            label="Dock Type"
+            value={currentStop.dockType || "Rear Dock"}
+            note={currentStop.parkingConstraint || "normal"}
+            tone="purple"
+            bars={[]}
+          />
         </div>
 
         {/* Main 2-col */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
-
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
           {/* Stop details */}
           <Panel>
-            <PanelHeader title="Stop details" subtitle={currentStop.store} />
+            <PanelHeader title="Stop details" subtitle={currentStop.outletName} />
             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y divide-black/[0.05] dark:divide-white/[0.05]">
               {[
-                ["Store",       currentStop.store],
-                ["Address",     currentStop.addr],
-                ["Contact",     currentStop.contact],
-                ["Phone",       currentStop.phone],
-                ["Dock access", currentStop.dock],
-                ["Delivery",    `${currentStop.cartonsType} · ${currentStop.weight}`],
-                ["Window",      currentStop.window],
-                ["Temperature", currentStop.temperature],
+                ["Store", currentStop.outletName],
+                ["Address", currentStop.address],
+                ["Contact", currentStop.contactName],
+                ["Phone", currentStop.contactPhone],
+                ["Dock access", currentStop.dockType],
+                ["Delivery", `${currentStop.cartonsType || `${currentStop.cartons} cartons`} · ${currentStop.weightKg} kg`],
+                ["Window", `${currentStop.windowOpenTime?.slice(0, 5)} – ${currentStop.windowCloseTime?.slice(0, 5)}`],
+                ["Temperature", currentStop.tempClass],
               ].map(([k, v]) => (
                 <div key={k} className="p-4 border-r border-black/[0.05] dark:border-white/[0.05]">
-                  <div className="text-[8px] text-[#7B7B9D] font-bold uppercase tracking-[0.06em] mb-1">{k}</div>
+                  <div className="text-[8px] text-[#7B7B9D] font-bold uppercase tracking-[0.06em] mb-1">
+                    {k}
+                  </div>
                   <div className="text-xs font-semibold">{v}</div>
                 </div>
               ))}
             </div>
             <div className="px-5 py-4 flex gap-3 border-t border-black/[0.07] dark:border-white/[0.08]">
-              <Button variant="secondary" onClick={() => notify("Calling Suresh Wickrama…")}>
-                <Phone className="w-3.5 h-3.5" /> Call store contact
-              </Button>
-              <Button variant="secondary" onClick={() => notify("Navigation opened in maps.")}>
+              <Link href={`tel:${currentStop.contactPhone}`}>
+                <Button variant="secondary">
+                  <Phone className="w-3.5 h-3.5" /> Call store contact
+                </Button>
+              </Link>
+              <Button
+                variant="secondary"
+                onClick={() => notify("Navigation opened in maps with GPS waypoint.")}
+              >
                 <Map className="w-3.5 h-3.5" /> Navigate
               </Button>
             </div>
@@ -164,56 +443,122 @@ export default function DriverCurrentStopPage() {
                     </div>
                     <div className="text-base font-extrabold">Delivery complete</div>
                     <div className="text-[10px] text-[#7B7B9D]">
-                      POD uploaded · {new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })} · Signed by {podName || "Store receiver"}
+                      POD uploaded · Signed by {podName || "Store receiver"}
                     </div>
-                    <SyncBadgeToggle syncedLabel="Synced to server" onSync={triggerSync} />
+                    <div className="pt-2">
+                      <Link href="/driver">
+                        <Button variant="primary" size="full" className="font-bold">
+                          Next Stop on Run Sheet <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ) : state === "failed" ? (
+                  <div className="text-center py-6 space-y-3">
+                    <div className="w-14 h-14 rounded-full bg-rose-500/10 grid place-items-center mx-auto text-rose-500">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="text-base font-extrabold text-rose-600 dark:text-rose-400">
+                      Stop marked as failed
+                    </div>
+                    <div className="text-[10px] text-[#7B7B9D]">
+                      Deferral registered. Re-queued for dispatcher review.
+                    </div>
+                    <div className="pt-2">
+                      <Link href="/driver">
+                        <Button variant="secondary" size="full">
+                          Return to Run Sheet
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ) : state === "pod" ? (
                   <div className="space-y-4">
                     <div className="text-xs font-bold text-[#0F1020] dark:text-white border-b border-black/[0.07] dark:border-white/[0.08] pb-3">
-                      Proof of Delivery
+                      Proof of Delivery (POD) [FORM-DRV-03]
                     </div>
                     <div>
                       <FieldLabel>Receiver name *</FieldLabel>
-                      <Input placeholder="Full name of receiving staff" value={podName} onChange={(e) => setPodName(e.target.value)} />
+                      <Input
+                        placeholder="Full name of receiving staff member"
+                        value={podName}
+                        onChange={(e) => setPodName(e.target.value)}
+                      />
                     </div>
                     <div>
-                      <FieldLabel>Digital signature *</FieldLabel>
+                      <FieldLabel>Digital signature on glass *</FieldLabel>
                       <div
                         onClick={() => setPodSigned(true)}
-                        className={`h-20 rounded-xl border-2 grid place-items-center cursor-pointer transition-all duration-150 ${podSigned ? "border-[#10B981] bg-[rgba(16,185,129,.08)]" : "border-black/[0.07] dark:border-white/[0.08] bg-[#F5F6FB] dark:bg-[#1C1C38] hover:border-[#F5C542]"}`}
+                        className={`h-20 rounded-xl border-2 grid place-items-center cursor-pointer transition-all duration-150 ${
+                          podSigned
+                            ? "border-[#10B981] bg-[rgba(16,185,129,.08)]"
+                            : "border-black/[0.07] dark:border-white/[0.08] bg-[#F5F6FB] dark:bg-[#1C1C38] hover:border-[#F5C542]"
+                        }`}
                       >
-                        {podSigned
-                          ? <span className="text-[#10B981] font-bold text-sm flex items-center gap-1.5"><Check className="w-4 h-4" /> Signature captured</span>
-                          : <span className="text-[#7B7B9D] text-xs">Tap to capture signature</span>
-                        }
+                        {podSigned ? (
+                          <span className="text-[#10B981] font-bold text-sm flex items-center gap-1.5">
+                            <Check className="w-4 h-4" /> Signature captured
+                          </span>
+                        ) : (
+                          <span className="text-[#7B7B9D] text-xs">Tap to sign with finger</span>
+                        )}
                       </div>
                     </div>
                     <div>
                       <FieldLabel>Delivery remarks (optional)</FieldLabel>
-                      <Textarea placeholder="Condition of goods, damaged cartons, partial delivery notes…" rows={2} value={podRemarks} onChange={(e) => setPodRemarks(e.target.value)} />
+                      <Textarea
+                        placeholder="Condition of goods, temperature verified, seal check notes…"
+                        rows={2}
+                        value={podRemarks}
+                        onChange={(e) => setPodRemarks(e.target.value)}
+                      />
                     </div>
-                    <Button variant="primary" size="full" className="font-extrabold tracking-wide"
-                      onClick={() => {
-                        if (!podName || !podSigned) { notify("Please enter receiver name and capture signature."); return; }
-                        setState("done"); notify("POD submitted. Delivery confirmed and synced."); triggerSync();
-                      }}>
-                      <Check className="w-3.5 h-3.5" /> SUBMIT POD & COMPLETE
+                    <Button
+                      variant="primary"
+                      size="full"
+                      className="font-extrabold tracking-wide"
+                      disabled={actionLoading}
+                      onClick={handleSubmitPod}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      {actionLoading ? "Submitting…" : "SUBMIT POD & COMPLETE"}
                     </Button>
-                    <Button variant="secondary" size="full" className="text-xs" onClick={() => setState("arrived")}>← Back</Button>
+                    <Button
+                      variant="secondary"
+                      size="full"
+                      className="text-xs"
+                      onClick={() => setState("arrived")}
+                    >
+                      ← Back
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <Button variant={state === "arrived" ? "secondary" : "primary"} size="full" className="font-extrabold tracking-wide min-h-[52px] text-sm" disabled={state === "arrived"}
-                      onClick={() => { if (state !== "arrived") { setState("arrived"); notify("Arrival recorded. GPS coordinates captured."); triggerSync(); } }}>
+                    <Button
+                      variant={state === "arrived" ? "secondary" : "primary"}
+                      size="full"
+                      className="font-extrabold tracking-wide min-h-[52px] text-sm"
+                      disabled={state === "arrived" || actionLoading}
+                      onClick={handleArrive}
+                    >
                       <MapPin className="w-3.5 h-3.5" />
                       {state === "arrived" ? "ARRIVED ✓" : "ARRIVED AT OUTLET"}
                     </Button>
-                    <Button variant="primary" size="full" className="font-extrabold tracking-wide min-h-[52px] text-sm" disabled={state !== "arrived"}
-                      onClick={() => { if (state === "arrived") setState("pod"); }}>
+                    <Button
+                      variant="primary"
+                      size="full"
+                      className="font-extrabold tracking-wide min-h-[52px] text-sm"
+                      disabled={state !== "arrived"}
+                      onClick={() => setState("pod")}
+                    >
                       <Check className="w-3.5 h-3.5" /> COMPLETE DELIVERY
                     </Button>
-                    <Button variant="danger" size="full" className="font-bold" onClick={() => notify("Exception reported. Control tower notified.")}>
+                    <Button
+                      variant="danger"
+                      size="full"
+                      className="font-bold"
+                      onClick={() => setShowFailModal(true)}
+                    >
                       <AlertTriangle className="w-3.5 h-3.5" /> UNABLE TO DELIVER
                     </Button>
                   </div>
@@ -224,12 +569,18 @@ export default function DriverCurrentStopPage() {
             {/* Next stop */}
             {nextStop && (
               <Panel>
-                <PanelHeader title="Next stop" subtitle={`Stop ${nextStop.n} · Upcoming`} />
+                <PanelHeader title="Next stop" subtitle={`Stop ${nextStop.stopSequence} · Upcoming`} />
                 <div className="px-5 py-4">
-                  <div className="font-bold text-sm mb-1">{nextStop.store}</div>
-                  <div className="text-[10px] text-[#7B7B9D] mb-3">{nextStop.addr} · {nextStop.cartons} cartons</div>
+                  <div className="font-bold text-sm mb-1">{nextStop.outletName}</div>
+                  <div className="text-[10px] text-[#7B7B9D] mb-3">
+                    {nextStop.address} · {nextStop.cartons} cartons
+                  </div>
                   <div className="flex items-center gap-2">
-                    <DriverBadge variant="in-progress" label={`ETA ${nextStop.time}`} showDot />
+                    <DriverBadge
+                      variant="in-progress"
+                      label={`ETA ${nextStop.plannedArrivalTime?.slice(0, 5)}`}
+                      showDot
+                    />
                     <DriverBadge variant="upcoming" label={`${nextStop.cartons} cartons`} showDot={false} />
                   </div>
                 </div>

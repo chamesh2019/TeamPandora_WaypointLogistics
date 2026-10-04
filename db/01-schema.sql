@@ -257,6 +257,7 @@ CREATE TABLE trips (
   planned_return_time TIME NOT NULL,
   actual_departure_time TIMESTAMPTZ,
   actual_return_time TIMESTAMPTZ,
+  odometer_start_km INTEGER,
   estimated_fuel_liters DECIMAL(8,2) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

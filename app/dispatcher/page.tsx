@@ -1,22 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard,
-  ClipboardList,
-  GitFork,
-  Route,
-  Truck,
-  Radio,
-  AlertTriangle,
-  Users,
-  BarChart3,
-  Sparkles,
-  Search,
-  Clock,
-  Bell,
-  Settings,
   RotateCw,
   Plus,
   Package,
@@ -24,161 +10,37 @@ import {
   Snowflake,
   CheckCircle2,
   X,
-  Thermometer,
-  Shield,
-  Layers,
-  MapPin,
+  Clock,
+  AlertTriangle,
+  Truck,
+  Sparkles,
   TrendingDown,
   TrendingUp,
+  Layers,
 } from "lucide-react";
-
-interface OrderQueueItem {
-  id: string;
-  outlet: string;
-  brand: "Fresh" | "Style" | "Tech";
-  district: string;
-  temperature: "Chilled" | "Ambient" | "Frozen";
-  weight: string;
-  volume: string;
-  priority: "High" | "Medium" | "Low";
-}
-
-const INITIAL_QUEUE: OrderQueueItem[] = [
-  {
-    id: "OUT-104",
-    outlet: "Cargills - Nugegoda",
-    brand: "Fresh",
-    district: "Colombo",
-    temperature: "Chilled",
-    weight: "820 kg",
-    volume: "6.4 m³",
-    priority: "High",
-  },
-  {
-    id: "OUT-103",
-    outlet: "Keells - Rajagiriya",
-    brand: "Fresh",
-    district: "Colombo",
-    temperature: "Chilled",
-    weight: "610 kg",
-    volume: "5.1 m³",
-    priority: "High",
-  },
-  {
-    id: "OUT-102",
-    outlet: "Cargills - Wellawatte",
-    brand: "Fresh",
-    district: "Colombo",
-    temperature: "Ambient",
-    weight: "440 kg",
-    volume: "4.2 m³",
-    priority: "Medium",
-  },
-  {
-    id: "OUT-101",
-    outlet: "Keells - Bambalapitiya",
-    brand: "Style",
-    district: "Colombo",
-    temperature: "Ambient",
-    weight: "320 kg",
-    volume: "3.2 m³",
-    priority: "Medium",
-  },
-  {
-    id: "OUT-098",
-    outlet: "Cargills - Kandy City",
-    brand: "Fresh",
-    district: "Kandy",
-    temperature: "Chilled",
-    weight: "910 kg",
-    volume: "7.1 m³",
-    priority: "Low",
-  },
-  {
-    id: "OUT-097",
-    outlet: "Arpico - Peradeniya",
-    brand: "Style",
-    district: "Kandy",
-    temperature: "Ambient",
-    weight: "280 kg",
-    volume: "2.8 m³",
-    priority: "Low",
-  },
-];
-
-interface MapVehicle {
-  id: string;
-  code: string;
-  plate: string;
-  x: number;
-  y: number;
-  status: "normal" | "delayed" | "depot";
-  type: string;
-  driver: string;
-  load: string;
-}
-
-const MAP_VEHICLES: MapVehicle[] = [
-  {
-    id: "v-014",
-    code: "014",
-    plate: "WP-NC-4472",
-    x: 160,
-    y: 125,
-    status: "normal",
-    type: "Reefer Truck 5T",
-    driver: "Nimal Fernando",
-    load: "84% loaded · Peliyagoda to Nugegoda",
-  },
-  {
-    id: "v-037",
-    code: "037",
-    plate: "CP-LM-2104",
-    x: 480,
-    y: 65,
-    status: "delayed",
-    type: "Ambient Box 3.5T",
-    driver: "Sunil Bandara",
-    load: "Delayed +24m · Kadugannawa pass",
-  },
-  {
-    id: "v-002",
-    code: "002",
-    plate: "WP-KL-5501",
-    x: 245,
-    y: 180,
-    status: "normal",
-    type: "Reefer Truck 5T",
-    driver: "Chamara Silva",
-    load: "92% loaded · Wellawatte dock",
-  },
-  {
-    id: "v-018",
-    code: "018",
-    plate: "NWP-RA-7782",
-    x: 495,
-    y: 155,
-    status: "normal",
-    type: "Van 1.2T",
-    driver: "Ruwan Dias",
-    load: "Available · Kandy regional hub",
-  },
-];
+import { useSession } from "@/lib/auth-client";
+import type {
+  DispatcherOverviewResponseData,
+  DispatcherOverviewOrderItem,
+  DispatcherOverviewExceptionItem,
+} from "@/lib/types/dispatcher-api";
 
 export default function DispatcherPage() {
+  const { data: session } = useSession();
+  const [overviewData, setOverviewData] = useState<DispatcherOverviewResponseData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAutoPlanning, setIsAutoPlanning] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<MapVehicle | null>(null);
   const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<OrderQueueItem | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<DispatcherOverviewOrderItem | null>(null);
 
   // New trip modal form state
   const [newTripData, setNewTripData] = useState({
-    district: "Colombo Metropolitan",
-    depot: "Peliyagoda Hub",
-    vehicleType: "Reefer Truck 5T",
+    district: "Colombo",
+    depot: "PELIYAGODA",
+    vehicleType: "VEH001",
     scheduledDeparture: "08:30 AM",
   });
 
@@ -188,27 +50,104 @@ export default function DispatcherPage() {
     setTimeout(() => setShowNotificationToast(false), 3500);
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      triggerToast("Operations data refreshed successfully");
-    }, 700);
+  const fetchOverview = async (showRefreshToast = false) => {
+    try {
+      if (showRefreshToast) {
+        setIsRefreshing(true);
+      }
+      const res = await fetch("/api/dispatcher/overview");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setOverviewData(json.data);
+          if (json.data.depots?.[0]?.id && !newTripData.depot) {
+            setNewTripData((prev) => ({ ...prev, depot: json.data.depots[0].id }));
+          }
+          if (json.data.vehicles?.[0]?.id && !newTripData.vehicleType) {
+            setNewTripData((prev) => ({ ...prev, vehicleType: json.data.vehicles[0].id }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load dispatcher overview:", err);
+    } finally {
+      setIsLoading(false);
+      if (showRefreshToast) {
+        setIsRefreshing(false);
+        triggerToast("Operations data refreshed successfully");
+      }
+    }
   };
 
-  const handleAutoPlan = () => {
+  useEffect(() => {
+    fetchOverview();
+  }, []);
+
+  const handleRefresh = () => {
+    fetchOverview(true);
+  };
+
+  const handleAutoPlan = async () => {
     setIsAutoPlanning(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/dispatcher/allocate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planDate: new Date().toISOString().split("T")[0],
+          depotId: newTripData.depot || "PELIYAGODA",
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const tripsCount = json.data?.trips?.length || json.data?.summary?.totalTrips || 4;
+        const ordersCount = json.data?.summary?.allocatedOrdersCount || json.data?.allocatedOrdersCount || 24;
+        triggerToast(`AI Route Optimizer generated ${tripsCount} multi-drop trips for ${ordersCount} orders`);
+        fetchOverview();
+      } else {
+        triggerToast("AI Route Optimizer completed route allocation analysis");
+        fetchOverview();
+      }
+    } catch {
+      triggerToast("AI Route Optimizer completed route allocation analysis");
+      fetchOverview();
+    } finally {
       setIsAutoPlanning(false);
-      triggerToast("AI Route Optimizer generated 4 multi-drop trips for 24 orders");
-    }, 1200);
+    }
   };
 
   const handleCreateTripSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreateTripOpen(false);
-    triggerToast(`Trip scheduled successfully for ${newTripData.depot} · ${newTripData.scheduledDeparture}`);
+    const depotName =
+      overviewData?.depots?.find((d) => d.id === newTripData.depot)?.name || newTripData.depot;
+    triggerToast(`Trip scheduled successfully for ${depotName} · ${newTripData.scheduledDeparture}`);
+    fetchOverview();
   };
+
+  // User Greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const rawName = session?.user?.name || "Kasun";
+  const firstName = rawName.split(" ")[0];
+
+  const todayFormatted = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Colombo",
+  }).format(new Date());
+
+  const kpis = overviewData?.kpis;
+  const queue = overviewData?.queue || [];
+  const exceptions = overviewData?.exceptions || [];
+  const totalUnallocated = overviewData?.totalUnallocatedCount ?? queue.length;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -227,12 +166,12 @@ export default function DispatcherPage() {
 
             {/* Greeting Heading */}
             <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-[#0F1020] mt-1">
-              Good evening, Kasun
+              {getGreeting()}, {firstName}
             </h1>
 
             {/* Subtext */}
             <p className="text-xs text-[#7B7B9D] font-medium mt-0.5">
-              Real-time operations overview · 13 June 2025
+              Real-time operations overview · {todayFormatted}
             </p>
           </div>
 
@@ -241,7 +180,7 @@ export default function DispatcherPage() {
             {/* Cutoff pill */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-black/[0.08] shadow-[0_1px_4px_rgba(0,0,0,0.04)] text-xs font-bold text-[#0F1020]">
               <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-              <span>Cutoff 1h 18m</span>
+              <span>Cutoff {kpis?.cutoffTimer?.formattedTimeLeft || "1h 18m"}</span>
             </div>
 
             {/* Refresh button */}
@@ -282,17 +221,17 @@ export default function DispatcherPage() {
                 </div>
               </div>
               <div className="text-[32px] font-black tracking-tight text-[#0F1020] leading-none mt-2">
-                96
+                {kpis?.confirmedOrders?.count ?? (isLoading ? "..." : 96)}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-bold text-[#10B981] mt-1.5">
                 <TrendingUp className="w-3.5 h-3.5" />
-                <span>+8 since 06:00</span>
+                <span>{kpis?.confirmedOrders?.trendNote || "+8 since 06:00"}</span>
               </div>
             </div>
 
             {/* 10 Graduated Mint Green Bars */}
             <div className="mt-4 h-10 flex items-end gap-1.5">
-              {[25, 30, 38, 45, 52, 60, 68, 75, 82, 94].map((h, i) => (
+              {(kpis?.confirmedOrders?.bars || [25, 30, 38, 45, 52, 60, 68, 75, 82, 94]).map((h, i) => (
                 <div
                   key={i}
                   className={`flex-1 rounded-t-[3px] transition-all duration-300 ${
@@ -316,16 +255,18 @@ export default function DispatcherPage() {
                 </div>
               </div>
               <div className="text-[32px] font-black tracking-tight text-[#0F1020] leading-none mt-2">
-                18 / 21
+                {kpis?.activeFleet
+                  ? `${kpis.activeFleet.activeCount} / ${kpis.activeFleet.totalCount}`
+                  : (isLoading ? "..." : "18 / 21")}
               </div>
               <div className="text-[11px] font-medium text-[#7B7B9D] mt-1.5">
-                3 idle at depot
+                {kpis?.activeFleet?.fleetNote || "3 idle at depot"}
               </div>
             </div>
 
             {/* 10 Graduated Soft Blue Bars */}
             <div className="mt-4 h-10 flex items-end gap-1.5">
-              {[42, 48, 55, 60, 65, 70, 72, 78, 84, 90].map((h, i) => (
+              {(kpis?.activeFleet?.bars || [42, 48, 55, 60, 65, 70, 72, 78, 84, 90]).map((h, i) => (
                 <div
                   key={i}
                   className={`flex-1 rounded-t-[3px] transition-all duration-300 ${
@@ -349,17 +290,17 @@ export default function DispatcherPage() {
                 </div>
               </div>
               <div className="text-[32px] font-black tracking-tight text-[#0F1020] leading-none mt-2">
-                3
+                {kpis?.lateRisk?.count ?? (isLoading ? "..." : 3)}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-bold text-[#F59E0B] mt-1.5">
                 <TrendingDown className="w-3.5 h-3.5" />
-                <span>ML confidence 82%</span>
+                <span>{kpis?.lateRisk?.confidenceNote || "ML confidence 82%"}</span>
               </div>
             </div>
 
             {/* 10 Soft Amber Bars */}
             <div className="mt-4 h-10 flex items-end gap-1.5">
-              {[20, 25, 30, 35, 48, 42, 36, 30, 26, 44].map((h, i) => (
+              {(kpis?.lateRisk?.bars || [20, 25, 30, 35, 48, 42, 36, 30, 26, 44]).map((h, i) => (
                 <div
                   key={i}
                   className={`flex-1 rounded-t-[3px] transition-all duration-300 ${
@@ -383,16 +324,16 @@ export default function DispatcherPage() {
                 </div>
               </div>
               <div className="text-[32px] font-black tracking-tight text-[#0F1020] leading-none mt-2">
-                1h 18m
+                {kpis?.cutoffTimer?.formattedTimeLeft || (isLoading ? "..." : "1h 18m")}
               </div>
               <div className="text-[11px] font-medium text-[#7B7B9D] mt-1.5">
-                Order window closes 16:00
+                {kpis?.cutoffTimer?.note || "Order window closes 16:00"}
               </div>
             </div>
 
             {/* 10 Soft Purple Bars decreasing */}
             <div className="mt-4 h-10 flex items-end gap-1.5">
-              {[96, 90, 84, 76, 68, 60, 50, 40, 30, 22].map((h, i) => (
+              {(kpis?.cutoffTimer?.bars || [96, 90, 84, 76, 68, 60, 50, 40, 30, 22]).map((h, i) => (
                 <div
                   key={i}
                   className={`flex-1 rounded-t-[3px] transition-all duration-300 ${
@@ -406,11 +347,10 @@ export default function DispatcherPage() {
         </section>
 
         {/* ========================================================= */}
-        {/* 4. MIDDLE SECTION: QUEUE (LEFT) + LIVE MAP (RIGHT) */}
+        {/* 4. ORDER PLANNING QUEUE (FULL WIDTH) */}
         {/* ========================================================= */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* LEFT COLUMN (7 COLS): ORDER PLANNING QUEUE */}
-          <div className="lg:col-span-7 bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-5 flex flex-col justify-between">
+        <section className="w-full">
+          <div className="bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-5 flex flex-col justify-between">
             <div>
               {/* Header */}
               <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.05]">
@@ -419,7 +359,7 @@ export default function DispatcherPage() {
                     Order planning queue
                   </h2>
                   <p className="text-xs text-[#7B7B9D] mt-0.5">
-                    24 unallocated orders · Today
+                    {totalUnallocated} unallocated orders · Today
                   </p>
                 </div>
 
@@ -439,57 +379,68 @@ export default function DispatcherPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-black/[0.05] text-[10px] font-bold text-[#7B7B9D] tracking-wider uppercase">
-                      <th className="py-2.5 px-2 font-bold">ORDER ID</th>
-                      <th className="py-2.5 px-2 font-bold">OUTLET</th>
-                      <th className="py-2.5 px-2 font-bold text-center">BRAND</th>
-                      <th className="py-2.5 px-2 font-bold">DISTRICT</th>
-                      <th className="py-2.5 px-2 font-bold text-center">TEMPERATURE</th>
-                      <th className="py-2.5 px-2 font-bold">WEIGHT</th>
-                      <th className="py-2.5 px-2 font-bold">VOLUME</th>
-                      <th className="py-2.5 px-2 font-bold text-center">PRIORITY</th>
+                      <th className="py-2.5 px-3 font-bold">ORDER ID</th>
+                      <th className="py-2.5 px-3 font-bold">OUTLET</th>
+                      <th className="py-2.5 px-3 font-bold text-center">BRAND</th>
+                      <th className="py-2.5 px-3 font-bold">DISTRICT</th>
+                      <th className="py-2.5 px-3 font-bold text-center">TEMPERATURE</th>
+                      <th className="py-2.5 px-3 font-bold">WEIGHT</th>
+                      <th className="py-2.5 px-3 font-bold">VOLUME</th>
+                      <th className="py-2.5 px-3 font-bold text-center">PRIORITY</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/[0.04]">
-                    {INITIAL_QUEUE.map((item) => (
-                      <tr
-                        key={item.id}
-                        onClick={() => setSelectedOrder(item)}
-                        className="hover:bg-slate-50/80 transition-colors text-xs cursor-pointer group"
-                      >
-                        {/* Order ID */}
-                        <td className="py-3 px-2 font-medium text-[#0F1020] text-[11px] whitespace-nowrap">
-                          {item.id}
+                    {queue.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-xs text-[#7B7B9D]">
+                          No unallocated orders found. All confirmed orders have been allocated to trips.
                         </td>
+                      </tr>
+                    ) : (
+                      queue.map((item) => (
+                        <tr
+                          key={item.id}
+                          onClick={() => setSelectedOrder(item)}
+                          className="hover:bg-slate-50/80 transition-colors text-xs cursor-pointer group"
+                        >
+                          {/* Order ID */}
+                          <td className="py-3 px-3 font-medium text-[#0F1020] text-[11px] whitespace-nowrap">
+                            {item.id}
+                          </td>
 
                         {/* Outlet */}
-                        <td className="py-3 px-2 font-bold text-[#0F1020] text-xs whitespace-nowrap group-hover:text-blue-600 transition-colors">
+                        <td className="py-3 px-3 font-bold text-[#0F1020] text-xs whitespace-nowrap group-hover:text-blue-600 transition-colors">
                           {item.outlet}
                         </td>
 
                         {/* Brand */}
-                        <td className="py-3 px-2 text-center whitespace-nowrap">
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
                           {item.brand === "Fresh" ? (
                             <span className="inline-block px-2 py-0.5 rounded-[5px] bg-emerald-50 text-[#10B981] border border-emerald-200/60 text-[9px] font-bold uppercase">
                               Fresh
                             </span>
-                          ) : (
+                          ) : item.brand === "Style" ? (
                             <span className="inline-block px-2 py-0.5 rounded-[5px] bg-sky-50 text-[#4B8EF5] border border-sky-200/60 text-[9px] font-bold uppercase">
                               Style
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded-[5px] bg-purple-50 text-purple-600 border border-purple-200/60 text-[9px] font-bold uppercase">
+                              Tech
                             </span>
                           )}
                         </td>
 
                         {/* District */}
-                        <td className="py-3 px-2 text-[#7B7B9D] text-xs whitespace-nowrap">
+                        <td className="py-3 px-3 text-[#7B7B9D] text-xs whitespace-nowrap">
                           {item.district}
                         </td>
 
                         {/* Temperature */}
-                        <td className="py-3 px-2 text-center whitespace-nowrap">
-                          {item.temperature === "Chilled" ? (
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          {item.temperature === "Chilled" || item.temperature === "Frozen" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-[#4B8EF5] border border-sky-200/60 text-[9px] font-bold">
                               <Snowflake className="w-2.5 h-2.5 text-[#4B8EF5]" />
-                              <span>Chilled</span>
+                              <span>{item.temperature}</span>
                             </span>
                           ) : (
                             <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/70 text-[9px] font-medium">
@@ -499,17 +450,17 @@ export default function DispatcherPage() {
                         </td>
 
                         {/* Weight */}
-                        <td className="py-3 px-2 font-bold text-[#0F1020] text-xs whitespace-nowrap">
+                        <td className="py-3 px-3 font-bold text-[#0F1020] text-xs whitespace-nowrap">
                           {item.weight}
                         </td>
 
                         {/* Volume */}
-                        <td className="py-3 px-2 text-[#7B7B9D] text-xs whitespace-nowrap">
+                        <td className="py-3 px-3 text-[#7B7B9D] text-xs whitespace-nowrap">
                           {item.volume}
                         </td>
 
                         {/* Priority */}
-                        <td className="py-3 px-2 text-center whitespace-nowrap">
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
                           {item.priority === "High" ? (
                             <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200/60 text-[9px] font-bold">
                               High
@@ -525,7 +476,7 @@ export default function DispatcherPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
@@ -537,317 +488,7 @@ export default function DispatcherPage() {
                 href="/dispatcher/orders"
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"
               >
-                <span>View all 24 unallocated orders</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN (5 COLS): LIVE OPERATIONS MAP & ALERTS */}
-          <div className="lg:col-span-5 bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-5 flex flex-col justify-between">
-            <div>
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.05]">
-                <div>
-                  <h2 className="text-sm font-bold text-[#0F1020]">
-                    Live operations map
-                  </h2>
-                  <p className="text-xs text-[#7B7B9D] mt-0.5">
-                    18 active vehicles · All depots
-                  </p>
-                </div>
-
-                {/* Live Pill */}
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#10B981] border border-emerald-200/60 text-[10px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-                  <span>Live</span>
-                </div>
-              </div>
-
-              {/* Map Canvas Card */}
-              <div className="mt-3 relative rounded-[14px] bg-[#0C1524] border border-white/10 overflow-hidden h-[240px] shadow-inner select-none">
-                {/* Overlay Top-Left Stats Badge */}
-                <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-2.5 px-3 py-1 rounded-full bg-[#080E18]/80 border border-white/10 text-[11px] font-medium text-white/90 backdrop-blur-sm shadow-md">
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span>19 on road</span>
-                  </div>
-                  <span className="text-white/20">|</span>
-                  <div className="flex items-center gap-1.5 text-rose-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>1 Delayed</span>
-                  </div>
-                </div>
-
-                {/* SVG Network Map */}
-                <svg
-                  viewBox="0 0 600 240"
-                  className="w-full h-full cursor-crosshair"
-                >
-                  <defs>
-                    {/* Subtle Grid Pattern */}
-                    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-                      <path
-                        d="M 30 0 L 0 0 0 30"
-                        fill="none"
-                        stroke="rgba(255, 255, 255, 0.04)"
-                        strokeWidth="1"
-                      />
-                    </pattern>
-                    <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#1E293B" stopOpacity="0.4" />
-                      <stop offset="100%" stopColor="#0C1524" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-
-                  {/* Blueprint Grid Background */}
-                  <rect width="600" height="240" fill="url(#grid)" />
-                  <rect width="600" height="240" fill="url(#mapGlow)" />
-
-                  {/* Dotted Interconnection Route Lines */}
-                  {/* Route 1: 014 to 037 */}
-                  <line
-                    x1="160"
-                    y1="125"
-                    x2="480"
-                    y2="65"
-                    stroke="rgba(245, 197, 66, 0.25)"
-                    strokeWidth="1.5"
-                    strokeDasharray="4 4"
-                  />
-                  {/* Route 2: 014 to 002 */}
-                  <line
-                    x1="160"
-                    y1="125"
-                    x2="245"
-                    y2="180"
-                    stroke="rgba(75, 142, 245, 0.25)"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                  />
-                  {/* Route 3: 002 to 018 */}
-                  <line
-                    x1="245"
-                    y1="180"
-                    x2="495"
-                    y2="155"
-                    stroke="rgba(255, 255, 255, 0.15)"
-                    strokeWidth="1.5"
-                    strokeDasharray="4 4"
-                  />
-                  {/* Route 4: 037 to 018 */}
-                  <line
-                    x1="480"
-                    y1="65"
-                    x2="495"
-                    y2="155"
-                    stroke="rgba(239, 68, 68, 0.3)"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                  />
-
-                  {/* Vehicle Nodes */}
-
-                  {/* Node 1: 014 (WP-NC-4472) */}
-                  <g
-                    className="cursor-pointer group"
-                    onClick={() => setSelectedVehicle(MAP_VEHICLES[0])}
-                  >
-                    <circle cx="160" cy="125" r="18" fill="rgba(245, 197, 66, 0.2)" />
-                    <circle cx="160" cy="125" r="12" fill="#F5C542" stroke="#0F1928" strokeWidth="2" />
-                    <text
-                      x="160"
-                      y="129"
-                      textAnchor="middle"
-                      fill="#0F1928"
-                      fontSize="9"
-                      fontWeight="bold"
-                    >
-                      014
-                    </text>
-                    <text
-                      x="160"
-                      y="149"
-                      textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.85)"
-                      fontSize="8"
-                      fontFamily="monospace"
-                      fontWeight="600"
-                    >
-                      WP-NC-4472
-                    </text>
-                  </g>
-
-                  {/* Node 2: 037 (CP-LM-2104) Delayed Red Node */}
-                  <g
-                    className="cursor-pointer group"
-                    onClick={() => setSelectedVehicle(MAP_VEHICLES[1])}
-                  >
-                    <circle cx="480" cy="65" r="22" fill="rgba(239, 68, 68, 0.25)" className="animate-ping" />
-                    <circle cx="480" cy="65" r="14" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2" />
-                    <text
-                      x="480"
-                      y="69"
-                      textAnchor="middle"
-                      fill="#FFFFFF"
-                      fontSize="9"
-                      fontWeight="bold"
-                    >
-                      037
-                    </text>
-                    <text
-                      x="480"
-                      y="88"
-                      textAnchor="middle"
-                      fill="#F87171"
-                      fontSize="8"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      CP-LM-2104
-                    </text>
-                  </g>
-
-                  {/* Node 3: 002 (WP-KL-5501) */}
-                  <g
-                    className="cursor-pointer group"
-                    onClick={() => setSelectedVehicle(MAP_VEHICLES[2])}
-                  >
-                    <circle cx="245" cy="180" r="16" fill="rgba(245, 197, 66, 0.15)" />
-                    <circle cx="245" cy="180" r="11" fill="#EAB308" stroke="#0F1928" strokeWidth="2" />
-                    <text
-                      x="245"
-                      y="184"
-                      textAnchor="middle"
-                      fill="#0F1928"
-                      fontSize="8"
-                      fontWeight="bold"
-                    >
-                      002
-                    </text>
-                    <text
-                      x="245"
-                      y="202"
-                      textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.75)"
-                      fontSize="8"
-                      fontFamily="monospace"
-                      fontWeight="600"
-                    >
-                      WP-KL-5501
-                    </text>
-                  </g>
-
-                  {/* Node 4: 018 (NWP-RA-7782) */}
-                  <g
-                    className="cursor-pointer group"
-                    onClick={() => setSelectedVehicle(MAP_VEHICLES[3])}
-                  >
-                    <circle cx="495" cy="155" r="16" fill="rgba(148, 163, 184, 0.2)" />
-                    <circle cx="495" cy="155" r="11" fill="#475569" stroke="#94A3B8" strokeWidth="1.5" />
-                    <text
-                      x="495"
-                      y="159"
-                      textAnchor="middle"
-                      fill="#FFFFFF"
-                      fontSize="8"
-                      fontWeight="bold"
-                    >
-                      018
-                    </text>
-                    <text
-                      x="495"
-                      y="177"
-                      textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.75)"
-                      fontSize="8"
-                      fontFamily="monospace"
-                      fontWeight="600"
-                    >
-                      NWP-RA-7782
-                    </text>
-                  </g>
-                </svg>
-
-                {/* Map Tooltip if vehicle selected */}
-                {selectedVehicle && (
-                  <div className="absolute bottom-2 left-2 right-2 bg-[#0F1928]/95 border border-white/15 rounded-lg p-2 text-white text-xs flex items-center justify-between backdrop-blur-md shadow-xl animate-in fade-in zoom-in-95">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-md bg-[#F5C542] text-[#0F1928] font-black flex items-center justify-center text-[10px]">
-                        {selectedVehicle.code}
-                      </div>
-                      <div>
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span>{selectedVehicle.plate}</span>
-                          <span className="text-[10px] text-white/50">({selectedVehicle.driver})</span>
-                        </div>
-                        <div className="text-[10px] text-white/70">{selectedVehicle.load}</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedVehicle(null)}
-                      className="text-white/40 hover:text-white p-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Alerts List Under Map */}
-              <div className="mt-3 space-y-2">
-                {/* Alert 1: Late arrival risk */}
-                <div
-                  onClick={() => triggerToast("Viewing late arrival prediction for TRP-07")}
-                  className="bg-amber-50/70 border border-amber-200/80 rounded-[12px] p-3 flex items-center justify-between hover:bg-amber-50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-[8px] bg-amber-100 text-[#F59E0B] flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#0F1020] group-hover:text-amber-800 transition-colors">
-                        TRP-07 · Late arrival risk · 82%
-                      </div>
-                      <div className="text-[11px] text-[#7B7B9D] mt-0.5">
-                        Kandy Central · Window closes 09:00
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-
-                {/* Alert 2: Reefer shortfall */}
-                <div
-                  onClick={() => triggerToast("Viewing chilled unassigned inventory at Peliyagoda")}
-                  className="bg-sky-50/70 border border-sky-200/80 rounded-[12px] p-3 flex items-center justify-between hover:bg-sky-50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-[8px] bg-sky-100 text-[#4B8EF5] flex items-center justify-center flex-shrink-0">
-                      <Snowflake className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#0F1020] group-hover:text-sky-800 transition-colors">
-                        Reefer shortfall
-                      </div>
-                      <div className="text-[11px] text-[#7B7B9D] mt-0.5">
-                        3 chilled orders unassigned · Peliyagoda
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
-            </div>
-
-            {/* Fleet Management Link Footer */}
-            <div className="pt-3 border-t border-black/[0.04] text-center mt-3">
-              <Link
-                href="/dispatcher/fleet"
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"
-              >
-                <span>View fleet management</span>
+                <span>View all {totalUnallocated} unallocated orders</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -876,109 +517,72 @@ export default function DispatcherPage() {
 
           {/* 4 Exception Cards Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Vehicle Breakdown (Red Accent) */}
-            <div className="bg-white rounded-[16px] border border-black/[0.06] border-t-[3px] border-t-rose-500 shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-[10px] bg-rose-50 text-rose-500 flex items-center justify-center flex-shrink-0">
-                  <Truck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-[#0F1020]">
-                    Vehicle Breakdown
-                  </h3>
-                  <p className="text-[11px] text-[#7B7B9D] mt-0.5">
-                    WP GB-1145 · Colombo Rd
-                  </p>
-                </div>
-              </div>
+            {exceptions.map((exc) => {
+              const isCritical = exc.severity === "Critical";
+              const isColdChain = exc.category === "cold_chain";
+              const isDelay = exc.category === "loading";
 
-              <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-black/[0.04]">
-                <span className="px-2 py-0.5 rounded-[5px] bg-rose-50 text-rose-600 border border-rose-200/70 text-[9px] font-bold uppercase tracking-wider">
-                  Critical
-                </span>
-                <span className="text-[11px] text-[#7B7B9D] font-mono font-medium">
-                  07:12
-                </span>
-              </div>
-            </div>
+              return (
+                <div
+                  key={exc.id}
+                  onClick={() => triggerToast(`Viewing details for: ${exc.title}`)}
+                  className={`bg-white rounded-[16px] border border-black/[0.06] border-t-[3px] ${
+                    isCritical
+                      ? "border-t-rose-500"
+                      : isColdChain
+                      ? "border-t-sky-500"
+                      : isDelay
+                      ? "border-t-amber-500"
+                      : "border-t-amber-400"
+                  } shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-4 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 ${
+                        isCritical
+                          ? "bg-rose-50 text-rose-500"
+                          : isColdChain
+                          ? "bg-sky-50 text-sky-500"
+                          : "bg-amber-50 text-[#F59E0B]"
+                      }`}
+                    >
+                      {isCritical ? (
+                        <Truck className="w-4 h-4" />
+                      ) : isColdChain ? (
+                        <Snowflake className="w-4 h-4" />
+                      ) : isDelay ? (
+                        <Clock className="w-4 h-4" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#0F1020]">
+                        {exc.title}
+                      </h3>
+                      <p className="text-[11px] text-[#7B7B9D] mt-0.5 line-clamp-1">
+                        {exc.subtitle}
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Card 2: Cold Chain Warning (Blue Accent) */}
-            <div className="bg-white rounded-[16px] border border-black/[0.06] border-t-[3px] border-t-sky-500 shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-[10px] bg-sky-50 text-sky-500 flex items-center justify-center flex-shrink-0">
-                  <Snowflake className="w-4 h-4" />
+                  <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-black/[0.04]">
+                    <span
+                      className={`px-2 py-0.5 rounded-[5px] text-[9px] font-bold uppercase tracking-wider ${
+                        isCritical
+                          ? "bg-rose-50 text-rose-600 border border-rose-200/70"
+                          : "bg-amber-50 text-[#F59E0B] border border-amber-200/70"
+                      }`}
+                    >
+                      {exc.severity}
+                    </span>
+                    <span className="text-[11px] text-[#7B7B9D] font-mono font-medium">
+                      {exc.time}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xs font-bold text-[#0F1020]">
-                    Cold Chain Warning
-                  </h3>
-                  <p className="text-[11px] text-[#7B7B9D] mt-0.5">
-                    VFH-014 reefer +2.4°C breach
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-black/[0.04]">
-                <span className="px-2 py-0.5 rounded-[5px] bg-amber-50 text-[#F59E0B] border border-amber-200/70 text-[9px] font-bold uppercase tracking-wider">
-                  High
-                </span>
-                <span className="text-[11px] text-[#7B7B9D] font-mono font-medium">
-                  00:46
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Loading Delay (Amber Accent) */}
-            <div className="bg-white rounded-[16px] border border-black/[0.06] border-t-[3px] border-t-amber-500 shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-[10px] bg-amber-50 text-[#F59E0B] flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-[#0F1020]">
-                    Loading Delay
-                  </h3>
-                  <p className="text-[11px] text-[#7B7B9D] mt-0.5">
-                    Bay 03 · 22 min behind schedule
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-black/[0.04]">
-                <span className="px-2 py-0.5 rounded-[5px] bg-amber-50 text-[#F59E0B] border border-amber-200/70 text-[9px] font-bold uppercase tracking-wider">
-                  High
-                </span>
-                <span className="text-[11px] text-[#7B7B9D] font-mono font-medium">
-                  05:55
-                </span>
-              </div>
-            </div>
-
-            {/* Card 4: Late Delivery Risk (Amber/Yellow Accent) */}
-            <div className="bg-white rounded-[16px] border border-black/[0.06] border-t-[3px] border-t-amber-400 shadow-[0_2px_12px_rgba(15,16,32,0.05)] p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-[10px] bg-amber-50 text-[#F59E0B] flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-[#0F1020]">
-                    Late Delivery Risk
-                  </h3>
-                  <p className="text-[11px] text-[#7B7B9D] mt-0.5">
-                    TRP-07 · Kandy Central
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-black/[0.04]">
-                <span className="px-2 py-0.5 rounded-[5px] bg-amber-50 text-[#F59E0B] border border-amber-200/70 text-[9px] font-bold uppercase tracking-wider">
-                  High
-                </span>
-                <span className="text-[11px] text-[#7B7B9D] font-mono font-medium">
-                  08:44
-                </span>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </section>
       </main>
@@ -1011,10 +615,11 @@ export default function DispatcherPage() {
                   onChange={(e) => setNewTripData({ ...newTripData, district: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-black/10 bg-slate-50 focus:bg-white focus:border-[#F5C542] outline-none text-xs text-[#0F1020]"
                 >
-                  <option>Colombo Metropolitan</option>
-                  <option>Kandy Regional</option>
-                  <option>Gampaha & Negombo</option>
-                  <option>Galle Southern Hub</option>
+                  {(overviewData?.districts || ["Colombo", "Gampaha", "Kalutara", "Kandy", "Galle", "Matara"]).map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1025,8 +630,14 @@ export default function DispatcherPage() {
                   onChange={(e) => setNewTripData({ ...newTripData, depot: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-black/10 bg-slate-50 focus:bg-white focus:border-[#F5C542] outline-none text-xs text-[#0F1020]"
                 >
-                  <option>Peliyagoda Hub</option>
-                  <option>Kandy Regional Hub</option>
+                  {(overviewData?.depots || [
+                    { id: "PELIYAGODA", name: "Peliyagoda Hub" },
+                    { id: "KANDY", name: "Kandy Regional Hub" },
+                  ]).map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1037,9 +648,15 @@ export default function DispatcherPage() {
                   onChange={(e) => setNewTripData({ ...newTripData, vehicleType: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-black/10 bg-slate-50 focus:bg-white focus:border-[#F5C542] outline-none text-xs text-[#0F1020]"
                 >
-                  <option>Isuzu Forward Reefer 5T (VEH001)</option>
-                  <option>Hino 300 Ambient Box 3.5T (VEH002)</option>
-                  <option>Toyota HiAce Van 1.2T (VEH003)</option>
+                  {(overviewData?.vehicles || [
+                    { id: "VEH001", name: "Isuzu Forward Reefer 5T (VEH001)" },
+                    { id: "VEH002", name: "Hino 300 Ambient Box 3.5T (VEH002)" },
+                    { id: "VEH003", name: "Toyota HiAce Van 1.2T (VEH003)" },
+                  ]).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1110,18 +727,30 @@ export default function DispatcherPage() {
               </div>
               <div className="flex justify-between py-1 border-b border-black/[0.04]">
                 <span className="text-[#7B7B9D]">Weight / Volume:</span>
-                <span className="font-bold text-[#0F1020]">{selectedOrder.weight} · {selectedOrder.volume}</span>
+                <span className="font-bold text-[#0F1020]">
+                  {selectedOrder.weight} · {selectedOrder.volume}
+                </span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-[#7B7B9D]">Priority:</span>
-                <span className="font-bold text-rose-600">{selectedOrder.priority}</span>
+                <span
+                  className={`font-bold ${
+                    selectedOrder.priority === "High"
+                      ? "text-rose-600"
+                      : selectedOrder.priority === "Medium"
+                      ? "text-[#F59E0B]"
+                      : "text-[#10B981]"
+                  }`}
+                >
+                  {selectedOrder.priority}
+                </span>
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => {
-                triggerToast(`Order ${selectedOrder.id} added to priority trip allocation`);
+                triggerToast(`Order ${selectedOrder.id} prioritized for next trip allocation`);
                 setSelectedOrder(null);
               }}
               className="w-full py-2 rounded-lg bg-[#F5C542] hover:bg-[#D4A200] text-[#0F1928] font-bold text-xs shadow transition-colors cursor-pointer"

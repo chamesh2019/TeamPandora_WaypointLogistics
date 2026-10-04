@@ -5,6 +5,7 @@ import { apiError } from "./response";
 import type { StoreAuthContext } from "../types/store-api";
 import type { LoaderAuthContext } from "../types/loader-api";
 import type { DispatcherAuthContext } from "../types/dispatcher-api";
+import type { DriverAuthContext } from "../types/driver-api";
 
 interface GuardUser {
   id?: string;
@@ -327,3 +328,79 @@ export async function requireDispatcher(
     depotId,
   };
 }
+
+/**
+ * Validates session, role permissions, and driver scoping for Driver API routes.
+ *
+ * 1. Checks Better Auth session from request headers.
+ * 2. Ensures user has 'driver' or 'dispatcher' role.
+ * 3. Scopes driverId to user.id, allowing dispatcher to override via query or header.
+ *
+ * Returns DriverAuthContext if valid, or a NextResponse error (401 / 403) on failure.
+ */
+export async function requireDriver(
+  request: Request
+): Promise<DriverAuthContext | NextResponse> {
+  if (!request) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  let sessionRes: GuardSessionResult | null = null;
+  try {
+    sessionRes = (await auth.api.getSession({
+      headers: request.headers,
+    })) as GuardSessionResult | null;
+  } catch {
+    return apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401);
+  }
+
+  if (!sessionRes || !sessionRes.user || !sessionRes.session) {
+    return apiError("UNAUTHORIZED", "Unauthorized: Valid session required", 401);
+  }
+
+  const user = sessionRes.user as GuardUser & { depotId?: string; depot_id?: string };
+  const role = user.role;
+
+  if (role !== "driver" && role !== "dispatcher" && role !== "admin") {
+    return apiError(
+      "FORBIDDEN_ROLE",
+      "Forbidden: Access requires driver or dispatcher role",
+      403
+    );
+  }
+
+  const userId = user.id || user.userId || "";
+  const username = user.username || user.name || user.email || userId;
+  const depotId = user.depotId || user.depot_id || undefined;
+
+  let driverId = userId;
+  if (role === "dispatcher" || role === "admin") {
+    let requestedDriver: string | undefined;
+    try {
+      const url = new URL(request.url, "http://localhost:3000");
+      requestedDriver =
+        url.searchParams.get("driverId") ||
+        url.searchParams.get("driver_id") ||
+        request.headers.get("x-driver-id") ||
+        request.headers.get("driver-id") ||
+        undefined;
+    } catch {
+      requestedDriver =
+        request.headers.get("x-driver-id") ||
+        request.headers.get("driver-id") ||
+        undefined;
+    }
+    if (requestedDriver && requestedDriver.trim() !== "") {
+      driverId = requestedDriver.trim();
+    }
+  }
+
+  return {
+    userId,
+    username,
+    role: role || "driver",
+    depotId,
+    driverId,
+  };
+}
+

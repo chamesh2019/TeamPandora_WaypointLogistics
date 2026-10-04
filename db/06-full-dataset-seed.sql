@@ -1630,14 +1630,20 @@ INSERT INTO orders (
   priority_score, deferred_yesterday, consecutive_skips, days_since_last_served, lifecycle_status
 )
 VALUES
-  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400, 8.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400, 8.50, FALSE, 0, 1, 'DELIVERED'),
   ('ORD-20261001-002', 'OUT001', '2026-10-01', '2026-09-30 14:12:00', FALSE, 'ambient', 60, 1100.00, 5.200, 7.50, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'CONFIRMED'),
-  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'ARRIVED'),
+  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'IN_TRANSIT'),
   ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
-  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED')
+  ('ORD-20261001-008', 'OUT106', '2026-10-01', '2026-09-30 10:15:00', FALSE, 'ambient', 14, 2200.00, 8.500, 5.50, FALSE, 0, 5, 'CONFIRMED'),
+  ('ORD-20261001-009', 'OUT005', '2026-10-01', '2026-09-30 16:15:00', FALSE, 'chilled', 40, 450.00, 3.200, 8.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-010', 'OUT006', '2026-10-01', '2026-09-30 16:20:00', FALSE, 'ambient', 65, 720.00, 4.800, 7.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-011', 'OUT015', '2026-10-01', '2026-09-30 14:40:00', FALSE, 'ambient', 50, 380.00, 6.000, 6.50, FALSE, 0, 2, 'CONFIRMED'),
+  ('ORD-20261001-012', 'OUT016', '2026-10-01', '2026-09-30 15:10:00', FALSE, 'ambient', 75, 510.00, 7.500, 6.00, FALSE, 0, 2, 'CONFIRMED'),
+  ('ORD-20261001-013', 'OUT025', '2026-10-01', '2026-09-30 13:30:00', FALSE, 'chilled', 55, 620.00, 3.800, 8.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-014', 'OUT026', '2026-10-01', '2026-09-30 14:00:00', FALSE, 'ambient', 80, 890.00, 5.500, 7.50, FALSE, 0, 1, 'CONFIRMED')
 ON CONFLICT (order_id) DO UPDATE SET
   outlet_id = EXCLUDED.outlet_id,
   order_date = EXCLUDED.order_date,
@@ -1664,7 +1670,13 @@ VALUES
   ('itm-011', 'ORD-20261001-007', 'SKU-APP-01', 'Hanging Garment Packs (Casual)', 70, 70, 70, 70, 7.50, 0.150, FALSE),
   ('itm-012', 'ORD-20261001-007', 'SKU-APP-02', 'Footwear Boxes Assorted', 50, 50, 50, 50, 8.50, 0.150, FALSE),
   ('itm-013', 'ORD-20261001-008', 'SKU-TECH-01', 'Refrigerator 320L Double Door', 6, 6, 6, 6, 180.00, 0.850, FALSE),
-  ('itm-014', 'ORD-20261001-008', 'SKU-TECH-02', 'Automatic Washing Machine 8kg', 8, 8, 8, 8, 140.00, 0.425, FALSE)
+  ('itm-014', 'ORD-20261001-008', 'SKU-TECH-02', 'Automatic Washing Machine 8kg', 8, 8, 8, 8, 140.00, 0.425, FALSE),
+  ('itm-015', 'ORD-20261001-009', 'SKU-DAIRY-01', 'Fresh Milk 1L Crates (12 pk)', 40, 0, 0, 0, 11.25, 0.080, TRUE),
+  ('itm-016', 'ORD-20261001-010', 'SKU-DRY-01', 'Premium White Rice 10kg Bag', 65, 0, 0, 0, 11.08, 0.074, FALSE),
+  ('itm-017', 'ORD-20261001-011', 'SKU-APP-01', 'Hanging Garment Packs (Casual)', 50, 0, 0, 0, 7.60, 0.120, FALSE),
+  ('itm-018', 'ORD-20261001-012', 'SKU-APP-02', 'Footwear Boxes Assorted', 75, 0, 0, 0, 6.80, 0.100, FALSE),
+  ('itm-019', 'ORD-20261001-013', 'SKU-PROD-01', 'Fresh Vegetables Mixed Crate', 55, 0, 0, 0, 11.27, 0.069, TRUE),
+  ('itm-020', 'ORD-20261001-014', 'SKU-BEV-01', 'Bottled Mineral Water 1.5L (12 pk)', 80, 0, 0, 0, 11.13, 0.069, FALSE)
 ON CONFLICT (item_id) DO UPDATE SET
   quantity_ordered = EXCLUDED.quantity_ordered,
   quantity_loaded = EXCLUDED.quantity_loaded,
@@ -1675,3 +1687,40 @@ ON CONFLICT (item_id) DO UPDATE SET
   sku_code = EXCLUDED.sku_code,
   product_name = EXCLUDED.product_name,
   is_chilled = EXCLUDED.is_chilled;
+
+INSERT INTO allocation_plans (
+  plan_id, plan_date, depot_id, dispatcher_id, status, total_orders, served_orders, deferred_orders, total_weight_kg, total_volume_m3, published_at
+) VALUES (
+  'PLAN-20261001-01', '2026-10-01', 'PELIYAGODA', 'usr-disp-001', 'PUBLISHED', 3, 3, 0, 1519.50, 8.400, NOW()
+) ON CONFLICT (plan_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  total_orders = EXCLUDED.total_orders,
+  served_orders = EXCLUDED.served_orders;
+
+INSERT INTO trips (
+  trip_id, plan_id, vehicle_id, trip_number, brand_id, district_id, depot_id, driver_id, status, total_orders_count, total_weight_kg, total_volume_m3, outbound_travel_min, inter_stop_travel_min, total_handling_min, total_trip_minutes, max_time_budget_min, planned_departure_time, planned_return_time, actual_departure_time, odometer_start_km, estimated_fuel_liters
+) VALUES (
+  'TRP-20261001-01', 'PLAN-20261001-01', 'VEH001', 1, 'FRESH', 'Colombo', 'PELIYAGODA', 'usr-driv-001', 'IN_TRANSIT', 3, 1519.50, 8.400, 25.00, 35.00, 55.00, 115.00, 270, '04:00:00', '08:30:00', '2026-10-01 04:05:00', 48250, 22.50
+) ON CONFLICT (trip_id) DO UPDATE SET
+  driver_id = EXCLUDED.driver_id,
+  status = EXCLUDED.status,
+  odometer_start_km = EXCLUDED.odometer_start_km;
+
+INSERT INTO trip_stops (
+  stop_id, trip_id, order_id, outlet_id, stop_sequence, load_sequence, planned_arrival_time, predicted_service_min, predicted_late_prob, actual_arrival_time, actual_depart_time, actual_service_min, is_late, status
+) VALUES
+  ('STP-20261001-01', 'TRP-20261001-01', 'ORD-20261001-001', 'OUT001', 1, 3, '04:20:00', 18.00, 0.05, '2026-10-01 04:22:00', '2026-10-01 04:40:00', 18.00, FALSE, 'DELIVERED'),
+  ('STP-20261001-02', 'TRP-20261001-01', 'ORD-20261001-003', 'OUT002', 2, 2, '05:00:00', 20.00, 0.10, '2026-10-01 05:05:00', NULL, NULL, FALSE, 'ARRIVED'),
+  ('STP-20261001-03', 'TRP-20261001-01', 'ORD-20261001-004', 'OUT007', 3, 1, '05:45:00', 22.00, 0.08, NULL, NULL, NULL, FALSE, 'PENDING')
+ON CONFLICT (stop_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  actual_arrival_time = EXCLUDED.actual_arrival_time,
+  actual_depart_time = EXCLUDED.actual_depart_time;
+
+INSERT INTO proof_of_deliveries (
+  pod_id, stop_id, order_id, driver_id, recipient_name, recipient_title, signature_url, photo_urls, delivered_at, notes
+) VALUES (
+  'POD-20261001-044000', 'STP-20261001-01', 'ORD-20261001-001', 'usr-driv-001', 'Sunil Jayasuriya', 'Store Manager', 'data:image/svg+xml;base64,PHN2Zz5zaWc8L3N2Zz4=', '[]'::jsonb, '2026-10-01 04:40:00', 'Delivered in full, temperature compliance verified'
+) ON CONFLICT (pod_id) DO UPDATE SET
+  recipient_name = EXCLUDED.recipient_name,
+  signature_url = EXCLUDED.signature_url;
