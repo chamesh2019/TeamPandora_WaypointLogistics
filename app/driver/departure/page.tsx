@@ -128,7 +128,7 @@ export default function DriverDeparturePage() {
           }
         >
           <Link href="/driver">
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="compact">
               Back to Run Sheet
             </Button>
           </Link>
@@ -254,7 +254,7 @@ export default function DriverDeparturePage() {
 
                   {/* Odometer Input */}
                   <div className="space-y-2">
-                    <FieldLabel required>Starting Vehicle Odometer (km)</FieldLabel>
+                    <FieldLabel>Starting Vehicle Odometer (km) *</FieldLabel>
                     <div className="relative max-w-sm">
                       <Input
                         type="number"
@@ -275,7 +275,7 @@ export default function DriverDeparturePage() {
                     <Button
                       type="submit"
                       variant="primary"
-                      size="lg"
+                      size="default"
                       disabled={submitting}
                       className="font-bold tracking-wide w-full sm:w-auto"
                     >

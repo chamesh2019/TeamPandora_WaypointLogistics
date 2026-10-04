@@ -180,7 +180,7 @@ export default function DriverExceptionsPage() {
             <div className="p-5 space-y-5">
               {/* Type selector */}
               <div>
-                <FieldLabel required>Exception category</FieldLabel>
+                <FieldLabel>Exception category *</FieldLabel>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
                   {EXCEPTION_TYPES.map((t) => (
                     <button
@@ -202,7 +202,7 @@ export default function DriverExceptionsPage() {
 
               {/* Description */}
               <div>
-                <FieldLabel required>Detailed explanation</FieldLabel>
+                <FieldLabel>Detailed explanation *</FieldLabel>
                 <Textarea
                   placeholder="Describe the issue, store name, SKU affected, shutter lock condition, or vehicle alarm..."
                   rows={4}
@@ -236,7 +236,7 @@ export default function DriverExceptionsPage() {
               <div className="pt-2">
                 <Button
                   variant="danger"
-                  size="lg"
+                  size="default"
                   disabled={submitting}
                   onClick={handleSubmit}
                   className="font-bold w-full sm:w-auto"

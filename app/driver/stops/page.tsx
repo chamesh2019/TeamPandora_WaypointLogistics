@@ -211,7 +211,7 @@ export default function DriverCurrentStopPage() {
       : state === "arrived"
       ? "in-progress"
       : state === "failed"
-      ? "failed"
+      ? "open"
       : "upcoming";
   const heroLabel =
     state === "done"
@@ -244,7 +244,7 @@ export default function DriverCurrentStopPage() {
             </p>
             <div className="space-y-3">
               <div>
-                <FieldLabel required>Failure Reason</FieldLabel>
+                <FieldLabel>Failure Reason *</FieldLabel>
                 <select
                   value={failReason}
                   onChange={(e) => setFailReason(e.target.value)}
@@ -258,7 +258,7 @@ export default function DriverCurrentStopPage() {
                 </select>
               </div>
               <div>
-                <FieldLabel required>Driver Explanation Notes</FieldLabel>
+                <FieldLabel>Driver Explanation Notes *</FieldLabel>
                 <Textarea
                   placeholder="Explain why delivery could not be completed (min 10 characters)..."
                   rows={3}
@@ -422,7 +422,7 @@ export default function DriverCurrentStopPage() {
                       Proof of Delivery (POD) [FORM-DRV-03]
                     </div>
                     <div>
-                      <FieldLabel required>Receiver name</FieldLabel>
+                      <FieldLabel>Receiver name *</FieldLabel>
                       <Input
                         placeholder="Full name of receiving staff member"
                         value={podName}
@@ -430,7 +430,7 @@ export default function DriverCurrentStopPage() {
                       />
                     </div>
                     <div>
-                      <FieldLabel required>Digital signature on glass</FieldLabel>
+                      <FieldLabel>Digital signature on glass *</FieldLabel>
                       <div
                         onClick={() => setPodSigned(true)}
                         className={`h-20 rounded-xl border-2 grid place-items-center cursor-pointer transition-all duration-150 ${

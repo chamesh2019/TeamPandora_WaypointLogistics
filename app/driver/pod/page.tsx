@@ -87,7 +87,7 @@ export default function DriverPodPage() {
                   {selectedPod.outletName} · Stop {selectedPod.stopSequence}
                 </p>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => setSelectedPod(null)}>
+              <Button variant="secondary" size="compact" onClick={() => setSelectedPod(null)}>
                 Close
               </Button>
             </div>
@@ -142,7 +142,7 @@ export default function DriverPodPage() {
         >
           <SyncBadge syncedLabel={`${completedCount} synced`} />
           <Link href="/driver/stops">
-            <Button variant="primary" size="sm">
+            <Button variant="primary" size="compact">
               <MapPin className="w-3.5 h-3.5" /> Continue Deliveries
             </Button>
           </Link>
@@ -247,7 +247,7 @@ export default function DriverPodPage() {
                       <td className="px-4 py-3 text-right">
                         <Button
                           variant="secondary"
-                          size="sm"
+                          size="compact"
                           onClick={() => setSelectedPod(s)}
                         >
                           <Eye className="w-3 h-3" /> View POD
