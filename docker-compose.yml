@@ -28,7 +28,7 @@ services:
     container_name: waypoint_web
     restart: unless-stopped
     ports:
-      - "${APP_PORT}:3000"
+      - "127.0.0.1:${APP_PORT}:3000"
     environment:
       - NODE_ENV=${NODE_ENV}
       - DATABASE_URL=${DATABASE_URL}
