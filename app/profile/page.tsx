@@ -399,7 +399,7 @@ export default function ProfilePage() {
           {/* Hero Profile Banner */}
           <div className="mb-6 overflow-hidden rounded-[14px] border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(15,16,32,0.07),0_0_0_1px_rgba(0,0,0,0.04)]">
             <div className="h-28 w-full bg-linear-to-r from-[#0F1928] via-[#1A2638] to-[#0F1928] p-6 relative">
-              <div className="absolute right-6 top-5 flex items-center gap-2">
+              <div className="absolute right-6 top-5 hidden items-center gap-2 sm:flex">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 backdrop-blur-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Active Session
@@ -408,10 +408,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="relative px-6 pb-6 pt-2">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between -mt-12">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between -mt-12">
                 {/* Avatar Preview */}
-                <div className="flex items-end gap-4">
-                  <div className="relative">
+                <div className="flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
+                  <div className="relative shrink-0">
                     {customAvatarActive && imageUrl.trim() ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -436,7 +436,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="mb-1">
+                  <div className="md:mb-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-extrabold text-[#0F1020] sm:text-2xl">
                         {name || sessionUser?.name || "User Profile"}
