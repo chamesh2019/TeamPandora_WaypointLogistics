@@ -18,6 +18,7 @@ volumes:
   - ./db/03-views.sql:/docker-entrypoint-initdb.d/03-views.sql:ro
   - ./db/04-better-auth.sql:/docker-entrypoint-initdb.d/04-better-auth.sql:ro
   - ./db/05-auth-seed.sql:/docker-entrypoint-initdb.d/05-auth-seed.sql:ro
+  - ./db/06-full-dataset-seed.sql:/docker-entrypoint-initdb.d/06-full-dataset-seed.sql:ro
 ```
 
 **If you have previously run `docker compose up`**:
@@ -67,6 +68,7 @@ Scripts are executed in alphabetical order by PostgreSQL's entrypoint:
 | `03-views.sql` | Operational SQL views: Role dashboards, load lists, control tower, and feasibility checks. |
 | `04-better-auth.sql` | Better Auth internal tables: `"user"`, `"session"`, `"account"`, and `"verification"`. |
 | `05-auth-seed.sql` | Credentials seed: Provisions the 4 operational staff accounts with Better Auth scrypt password hashes. |
+| `06-full-dataset-seed.sql` | Authoritative competition master datasets: Ingests 120 outlets, 60 vehicles, 12 districts, calendar, and 120 store manager accounts. |
 
 ---
 
