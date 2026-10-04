@@ -32,14 +32,14 @@ services:
     container_name: waypoint_web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${APP_PORT}:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - JWT_SECRET=${JWT_SECRET}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-waypoint_user}:${POSTGRES_PASSWORD:-waypoint_secure_pass}@postgres:5432/${POSTGRES_DB:-waypoint_db}
+      - JWT_SECRET=${JWT_SECRET:-waypoint_super_secret_jwt_key_2026}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-waypoint_better_auth_secret_key_super_secure_32chars}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

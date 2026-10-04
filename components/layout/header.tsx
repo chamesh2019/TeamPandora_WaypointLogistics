@@ -6,13 +6,17 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { DarkTabs } from "../design-system";
 import {
+  ArrowRight,
   Bell,
   ChevronDown,
   History,
+  Loader2,
   LogOut,
   Menu,
+  Package,
   Search,
   Shield,
+  Truck,
   User,
   X,
 } from "lucide-react";
@@ -124,7 +128,152 @@ export default function Header({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [apiResults, setApiResults] = useState<{
+    orders: Array<{ id: string; title: string; subtitle: string; href: string }>;
+    trips: Array<{ id: string; title: string; subtitle: string; href: string }>;
+  }>({ orders: [], trips: [] });
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileSearchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const matchedNavItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return navItems.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.href.toLowerCase().includes(q),
+    );
+  }, [navItems, searchQuery]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setApiResults({ orders: [], trips: [] });
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            setApiResults(json.data);
+          }
+        }
+      } catch (err) {
+        console.error("Search fetch failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleExecuteSearch = (targetHref?: string) => {
+    setSearchOpen(false);
+    setMobileMenuOpen(false);
+
+    if (targetHref) {
+      router.push(targetHref);
+      return;
+    }
+
+    const q = searchQuery.trim();
+    if (!q) return;
+
+    if (pathname?.startsWith("/store")) {
+      router.push(`/store/orders?search=${encodeURIComponent(q)}`);
+    } else if (pathname?.startsWith("/loader")) {
+      router.push(`/loader/manifests?search=${encodeURIComponent(q)}`);
+    } else {
+      router.push(`/dispatcher/orders?search=${encodeURIComponent(q)}`);
+    }
+  };
+
+  const allResults = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      subtitle?: string;
+      href: string;
+      type: "page" | "order" | "trip";
+      icon: LucideIcon;
+    }> = [];
+    matchedNavItems.forEach((item) => {
+      list.push({
+        id: `page-${item.href}`,
+        title: item.name,
+        subtitle: `Navigation · ${item.href}`,
+        href: item.href,
+        type: "page",
+        icon: item.icon,
+      });
+    });
+    apiResults.orders.forEach((ord) => {
+      list.push({
+        id: `ord-${ord.id}`,
+        title: ord.title,
+        subtitle: ord.subtitle,
+        href: ord.href,
+        type: "order",
+        icon: Package,
+      });
+    });
+    apiResults.trips.forEach((trp) => {
+      list.push({
+        id: `trp-${trp.id}`,
+        title: trp.title,
+        subtitle: trp.subtitle,
+        href: trp.href,
+        type: "trip",
+        icon: Truck,
+      });
+    });
+    return list;
+  }, [apiResults, matchedNavItems]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!searchOpen) {
+      if (e.key === "ArrowDown" && searchQuery.trim()) {
+        setSearchOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev + 1 < allResults.length ? prev + 1 : 0,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev > 0 ? prev - 1 : allResults.length - 1,
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (selectedIndex >= 0 && allResults[selectedIndex]) {
+        handleExecuteSearch(allResults[selectedIndex].href);
+      } else if (allResults.length > 0) {
+        handleExecuteSearch(allResults[0].href);
+      } else {
+        handleExecuteSearch();
+      }
+    } else if (e.key === "Escape") {
+      setSearchOpen(false);
+      setSelectedIndex(-1);
+    }
+  };
 
   const handleLogout = async () => {
     setProfileOpen(false);
@@ -166,30 +315,195 @@ export default function Header({
     icon: item.icon,
   }));
 
-  // Close mobile menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setMobileMenuOpen(false);
         setProfileOpen(false);
         setNotificationsOpen(false);
       }
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(target) &&
+        (!mobileSearchContainerRef.current ||
+          !mobileSearchContainerRef.current.contains(target))
+      ) {
+        setSearchOpen(false);
+      }
     }
-    if (mobileMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    if (profileOpen || notificationsOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [mobileMenuOpen, notificationsOpen, profileOpen]);
+  }, []);
 
-  // Close mobile menu on route change
+  // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setProfileOpen(false);
     setNotificationsOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
+
+  const renderSearchDropdown = (isMobile = false) => {
+    if (!searchOpen || !searchQuery.trim()) return null;
+
+    const hasResults = allResults.length > 0;
+
+    return (
+      <div
+        className={cn(
+          "absolute top-full z-50 mt-2 rounded-xl border border-white/10 bg-[#0F1928] p-2 text-slate-200 shadow-2xl backdrop-blur-md",
+          isMobile ? "left-4 right-4 w-auto" : "left-0 w-80 sm:w-96",
+        )}
+      >
+        {isSearching && allResults.length === 0 ? (
+          <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/50">
+            <Loader2 className="h-4 w-4 animate-spin text-[#F5C542]" />
+            <span>Searching...</span>
+          </div>
+        ) : hasResults ? (
+          <div className="max-h-80 overflow-y-auto space-y-1">
+            {/* Pages Section */}
+            {matchedNavItems.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                  Navigation
+                </div>
+                {matchedNavItems.map((item, idx) => {
+                  const ItemIcon = item.icon;
+                  const isSelected = selectedIndex === idx;
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      onClick={() => handleExecuteSearch(item.href)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors cursor-pointer",
+                        isSelected
+                          ? "bg-[#F5C542]/20 text-[#F5C542] font-semibold"
+                          : "text-slate-200 hover:bg-white/5 hover:text-white",
+                      )}
+                    >
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/5 text-[#F5C542]">
+                        <ItemIcon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="flex-1 truncate">{item.name}</span>
+                      {item.count != null && (
+                        <span className="rounded-full bg-[#F5C542]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#F5C542]">
+                          {item.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Orders Section */}
+            {apiResults.orders.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                  Orders
+                </div>
+                {apiResults.orders.map((ord, idx) => {
+                  const itemIndex = matchedNavItems.length + idx;
+                  const isSelected = selectedIndex === itemIndex;
+                  return (
+                    <button
+                      key={ord.id}
+                      type="button"
+                      onClick={() => handleExecuteSearch(ord.href)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors cursor-pointer",
+                        isSelected
+                          ? "bg-[#F5C542]/20 text-[#F5C542] font-semibold"
+                          : "text-slate-200 hover:bg-white/5 hover:text-white",
+                      )}
+                    >
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/5 text-amber-400">
+                        <Package className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold text-white">
+                          {ord.title}
+                        </div>
+                        <div className="truncate text-[10px] text-white/50">
+                          {ord.subtitle}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Trips Section */}
+            {apiResults.trips.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                  Trips
+                </div>
+                {apiResults.trips.map((trp, idx) => {
+                  const itemIndex =
+                    matchedNavItems.length + apiResults.orders.length + idx;
+                  const isSelected = selectedIndex === itemIndex;
+                  return (
+                    <button
+                      key={trp.id}
+                      type="button"
+                      onClick={() => handleExecuteSearch(trp.href)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors cursor-pointer",
+                        isSelected
+                          ? "bg-[#F5C542]/20 text-[#F5C542] font-semibold"
+                          : "text-slate-200 hover:bg-white/5 hover:text-white",
+                      )}
+                    >
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/5 text-blue-400">
+                        <Truck className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold text-white">
+                          {trp.title}
+                        </div>
+                        <div className="truncate text-[10px] text-white/50">
+                          {trp.subtitle}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="py-4 px-3 text-center text-xs text-white/50">
+            No direct matches for &quot;{searchQuery}&quot;
+          </div>
+        )}
+
+        {/* Action footer: Search everywhere */}
+        <div className="border-t border-white/10 pt-1.5 mt-1">
+          <button
+            type="button"
+            onClick={() => handleExecuteSearch()}
+            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-[#F5C542] hover:bg-white/5 transition-colors cursor-pointer"
+          >
+            <span className="truncate">
+              Search all orders for &quot;{searchQuery}&quot;
+            </span>
+            <div className="flex items-center gap-1 text-[10px] text-white/40">
+              <span className="rounded bg-white/10 px-1 py-0.5 font-mono">
+                ↵ Enter
+              </span>
+              <ArrowRight className="h-3 w-3 text-[#F5C542]" />
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="sticky top-0 z-30" ref={menuRef}>
@@ -230,15 +544,43 @@ export default function Header({
         {/* Right side actions */}
         <div className="ml-auto flex shrink-0 items-center gap-3">
           {/* Search — desktop only */}
-          <div className="hidden h-9 w-48 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 text-white/50 transition-colors focus-within:border-[#F5C542] focus-within:bg-white/10 lg:flex">
-            <Search className="h-3.5 w-3.5 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search orders, trips..."
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="w-full border-0 bg-transparent text-xs text-white outline-none placeholder:text-white/30"
-            />
+          <div className="relative hidden lg:block" ref={searchContainerRef}>
+            <div className="flex h-9 w-52 xl:w-68 items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 text-white/50 transition-colors focus-within:border-[#F5C542] focus-within:bg-white/10">
+              <Search className="h-3.5 w-3.5 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search orders, trips, pages..."
+                value={searchQuery}
+                onFocus={() => {
+                  if (searchQuery.trim().length > 0) setSearchOpen(true);
+                }}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                  setSelectedIndex(-1);
+                }}
+                onKeyDown={handleKeyDown}
+                className="w-full border-0 bg-transparent text-xs text-white outline-none placeholder:text-white/30"
+              />
+              {isSearching ? (
+                <Loader2 className="h-3 w-3 animate-spin text-[#F5C542] shrink-0" />
+              ) : searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchOpen(false);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="text-white/40 hover:text-white text-xs p-0.5 rounded-full cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
+            {renderSearchDropdown(false)}
           </div>
 
           {/* Notifications */}
@@ -396,17 +738,40 @@ export default function Header({
       {mobileMenuOpen && (
         <div className="lg:hidden border-b border-white/5 bg-[#0F1928] shadow-[0_4px_20px_rgba(0,0,0,.35)]">
           {/* Mobile search */}
-          <div className="px-4 pt-3 pb-2">
+          <div className="relative px-4 pt-3 pb-2" ref={mobileSearchContainerRef}>
             <div className="flex h-9 w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 text-white/50 transition-colors focus-within:border-[#F5C542] focus-within:bg-white/10">
               <Search className="h-3.5 w-3.5 shrink-0" />
               <input
                 type="text"
-                placeholder="Search orders, trips..."
+                placeholder="Search orders, trips, pages..."
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => {
+                  if (searchQuery.trim().length > 0) setSearchOpen(true);
+                }}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                  setSelectedIndex(-1);
+                }}
+                onKeyDown={handleKeyDown}
                 className="w-full border-0 bg-transparent text-xs text-white outline-none placeholder:text-white/30"
               />
+              {isSearching ? (
+                <Loader2 className="h-3 w-3 animate-spin text-[#F5C542] shrink-0" />
+              ) : searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchOpen(false);
+                  }}
+                  className="text-white/40 hover:text-white text-xs p-0.5 rounded-full cursor-pointer"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
             </div>
+            {renderSearchDropdown(true)}
           </div>
 
           {/* Mobile nav links */}
