@@ -354,6 +354,8 @@ export class DispatcherService {
         return {
           id: r.order_id,
           orderId: r.order_id,
+          outletId: r.outlet_id,
+          outlet_id: r.outlet_id,
           store: r.contact_name
             ? `${r.contact_name} (${brand})`
             : `${r.district_id || "Outlet"} ${brand}`,

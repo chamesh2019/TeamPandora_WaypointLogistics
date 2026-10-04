@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET as getAllocationQueue } from "../app/api/dispatcher/allocation/route";
 import { POST as commitAllocationTrip } from "../app/api/dispatcher/allocation/commit/route";
 import { GET as getDispatcherTrips } from "../app/api/dispatcher/trips/route";
+import { POST as publishPlan } from "../app/api/dispatcher/plans/publish/route";
 import * as guard from "../lib/api/guard";
+import { pool } from "../lib/db";
 import { DispatcherService } from "../lib/services/dispatcher-service";
 import { apiError } from "../lib/api/response";
 import type { DispatcherAuthContext } from "../lib/types/dispatcher-api";
@@ -302,6 +304,124 @@ describe("Dispatcher Allocation & Trips Routes", () => {
       expect(json.success).toBe(true);
       expect(json.data.trips).toHaveLength(1);
       expect(json.data.trips[0].tripId).toBe("TRP-01");
+    });
+  });
+
+  describe("POST /api/dispatcher/plans/publish", () => {
+    it("returns 401 when unauthenticated", async () => {
+      vi.spyOn(guard, "requireDispatcher").mockResolvedValue(
+        apiError("UNAUTHORIZED", "Unauthorized: Authentication required", 401)
+      );
+
+      const req = new Request("http://localhost:3000/api/dispatcher/plans/publish", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const res = await publishPlan(req);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when plan_id or plan_date is missing", async () => {
+      vi.spyOn(guard, "requireDispatcher").mockResolvedValue(mockAuthContext);
+
+      const req = new Request("http://localhost:3000/api/dispatcher/plans/publish", {
+        method: "POST",
+        body: JSON.stringify({
+          plan_id: "",
+          plan_date: "",
+        }),
+      });
+      const res = await publishPlan(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it("successfully publishes plan and queries real outlet_id for stops and deferrals", async () => {
+      vi.spyOn(guard, "requireDispatcher").mockResolvedValue(mockAuthContext);
+
+      const queryCalls: { sql: string; params?: any[] }[] = [];
+      const mockClient = {
+        query: vi.fn().mockImplementation((sql: string, params?: any[]) => {
+          queryCalls.push({ sql, params });
+          if (sql.includes("SELECT order_id, outlet_id FROM orders")) {
+            return Promise.resolve({
+              rows: [
+                { order_id: "ORD-001", outlet_id: "OUT004" },
+                { order_id: "ORD-002", outlet_id: "OUT005" },
+              ],
+            });
+          }
+          if (sql.includes("SELECT outlet_id FROM outlets")) {
+            return Promise.resolve({
+              rows: [{ outlet_id: "OUT001" }],
+            });
+          }
+          if (sql.includes("SELECT assigned_driver_id FROM vehicles")) {
+            return Promise.resolve({
+              rows: [{ assigned_driver_id: "usr-driv-001" }],
+            });
+          }
+          return Promise.resolve({ rows: [], rowCount: 1 });
+        }),
+        release: vi.fn(),
+      };
+      vi.spyOn(pool, "connect").mockResolvedValue(mockClient as any);
+
+      const req = new Request("http://localhost:3000/api/dispatcher/plans/publish", {
+        method: "POST",
+        body: JSON.stringify({
+          plan_id: "PLAN-20261001-PELIYAGODA",
+          plan_date: "2026-10-01",
+          depot_id: "PELIYAGODA",
+          trips: [
+            {
+              vehicle_id: "VEH001",
+              trip_number: 1,
+              brand: "FRESH",
+              district: "Colombo",
+              depot: "PELIYAGODA",
+              duration_minutes: 90,
+              total_weight_kg: 500,
+              total_volume_m3: 3.5,
+              stops: [
+                {
+                  order_id: "ORD-001",
+                  outlet_id: "ORD-001", // Notice: faulty order_id passed as outlet_id!
+                },
+              ],
+            },
+          ],
+          deferred: [
+            {
+              order_id: "ORD-002",
+              outlet_id: "ORD-002", // Faulty outlet_id
+              reason_code: "CAPACITY_WEIGHT",
+              notes: "Weight exceeded",
+            },
+          ],
+        }),
+      });
+
+      const res = await publishPlan(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.plan_id).toBe("PLAN-20261001-PELIYAGODA");
+      expect(mockClient.release).toHaveBeenCalled();
+
+      // Verify trip_stops insert used OUT004 (from orders table lookup), NOT ORD-001!
+      const stopInsert = queryCalls.find((c) => c.sql.includes("INSERT INTO trip_stops"));
+      expect(stopInsert).toBeDefined();
+      // stopInsert params: [stopId, tripId, stop.order_id, outletIdToInsert, ...]
+      expect(stopInsert?.params?.[2]).toBe("ORD-001");
+      expect(stopInsert?.params?.[3]).toBe("OUT004"); // Resolved correctly from DB!
+
+      // Verify deferrals insert used OUT005 (from orders table lookup), NOT ORD-002!
+      const defInsert = queryCalls.find((c) => c.sql.includes("INSERT INTO deferrals"));
+      expect(defInsert).toBeDefined();
+      expect(defInsert?.params?.[2]).toBe("ORD-002");
+      expect(defInsert?.params?.[3]).toBe("OUT005"); // Resolved correctly from DB!
     });
   });
 });

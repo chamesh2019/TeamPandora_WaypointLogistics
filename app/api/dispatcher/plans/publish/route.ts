@@ -71,6 +71,63 @@ export async function POST(request: Request) {
           ]
         );
 
+        // Collect all order IDs across all trips and deferred orders
+        const allOrderIds: string[] = [
+          ...trips.flatMap((t: any) => [
+            ...(t.stops || []).map((s: any) => s.order_id || s.id),
+            ...(t.orders || []).map((o: any) => o.order_id || o.id),
+          ]),
+          ...deferred.map((d: any) => d.order_id || d.id),
+        ].filter(Boolean);
+
+        const orderOutletMap = new Map<string, string>();
+        if (allOrderIds.length > 0) {
+          try {
+            const orderRows = await client.query(
+              `SELECT order_id, outlet_id FROM orders WHERE order_id = ANY($1::varchar[])`,
+              [allOrderIds]
+            );
+            for (const row of orderRows.rows) {
+              orderOutletMap.set(row.order_id, row.outlet_id);
+            }
+          } catch {}
+        }
+
+        // Get a known valid fallback outlet_id from outlets table in case an order wasn't found in DB
+        let defaultOutletId = 'OUT001';
+        try {
+          const defaultOutletRes = await client.query(`SELECT outlet_id FROM outlets LIMIT 1`);
+          if (defaultOutletRes.rows[0]?.outlet_id) {
+            defaultOutletId = defaultOutletRes.rows[0].outlet_id;
+          }
+        } catch {}
+
+        const VALID_DEFERRAL_REASONS = new Set([
+          'CAPACITY_WEIGHT',
+          'CAPACITY_VOLUME',
+          'TIME_BUDGET_EXCEEDED',
+          'NO_REEFER_AVAILABLE',
+          'NO_VAN_AVAILABLE',
+          'FUEL_QUOTA_EXCEEDED',
+          'WORKSHOP_FLEET_SHORTAGE',
+          'AFTER_CUTOFF',
+          'OUTLET_WINDOW_MISMATCH',
+        ]);
+
+        const getValidOutletId = (orderId: string, explicitOutletId?: string): string => {
+          if (orderOutletMap.has(orderId)) {
+            return orderOutletMap.get(orderId)!;
+          }
+          if (
+            explicitOutletId &&
+            !explicitOutletId.startsWith('ORD-') &&
+            !explicitOutletId.startsWith('ORD_')
+          ) {
+            return explicitOutletId;
+          }
+          return defaultOutletId;
+        };
+
         // 3. Insert trips and trip stops
         for (let i = 0; i < trips.length; i++) {
           const trip = trips[i];
@@ -91,7 +148,10 @@ export async function POST(request: Request) {
             `SELECT assigned_driver_id FROM vehicles WHERE vehicle_id = $1`,
             [trip.vehicle_id]
           );
-          let driverId = driverRes.rows[0]?.assigned_driver_id;
+          let driverId =
+            (trip as any).driver_id ||
+            (trip as any).driverId ||
+            driverRes.rows[0]?.assigned_driver_id;
           if (!driverId) {
             const anyDriverRes = await client.query(
               `SELECT user_id FROM users WHERE role = 'driver' LIMIT 1`
@@ -137,7 +197,7 @@ export async function POST(request: Request) {
               maxBudget,
               departureTime,
               returnTime,
-              15.0, // fuel estimate
+              trip.estimated_fuel_liters || 15.0, // calculated fuel estimate
             ]
           );
 
@@ -161,6 +221,10 @@ export async function POST(request: Request) {
             const stop = trip.stops[sIdx];
             const stopId = `STOP-${tripId}-${sIdx + 1}`;
             const loadSequence = totalStops - sIdx; // Reverse load sequence
+            const outletIdToInsert = getValidOutletId(
+              stop.order_id,
+              stop.outlet_id || (stop as any).outletId
+            );
 
             await client.query(
               `INSERT INTO trip_stops (
@@ -177,7 +241,7 @@ export async function POST(request: Request) {
                 stopId,
                 tripId,
                 stop.order_id,
-                stop.outlet_id || 'OUT001',
+                outletIdToInsert,
                 sIdx + 1,
                 loadSequence,
                 '05:30:00',
@@ -196,6 +260,13 @@ export async function POST(request: Request) {
         for (let dIdx = 0; dIdx < deferred.length; dIdx++) {
           const def = deferred[dIdx];
           const deferralId = `DEF-${plan_id}-${dIdx + 1}`;
+          const defOutletId = getValidOutletId(
+            def.order_id,
+            def.outlet_id || (def as any).outletId
+          );
+          const safeReasonCode = VALID_DEFERRAL_REASONS.has(def.reason_code)
+            ? def.reason_code
+            : 'CAPACITY_WEIGHT';
 
           await client.query(
             `INSERT INTO deferrals (
@@ -206,9 +277,9 @@ export async function POST(request: Request) {
               deferralId,
               plan_id,
               def.order_id,
-              def.outlet_id || 'OUT001',
-              def.reason_code,
-              def.notes || `Deferred due to ${def.reason_code}`,
+              defOutletId,
+              safeReasonCode,
+              def.notes || `Deferred due to ${safeReasonCode}`,
               dispatcherId,
             ]
           );

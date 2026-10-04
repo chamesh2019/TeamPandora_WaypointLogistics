@@ -225,4 +225,224 @@ describe('Allocation Solver', () => {
     expect(result.trips[1].brand).toBe('STYLE');
     expect(result.kpi.fulfillment_rate_pct).toBe(100);
   });
+
+  it('strictly caps a truck to at most 2 trips per day and defers additional trips', () => {
+    // 3 orders with 3 different brands/districts requiring 3 separate trips
+    const orders: SolverOrderInput[] = [
+      {
+        order_id: 'ORD-1',
+        outlet_id: 'OUT-1',
+        brand: 'FRESH',
+        district: 'Colombo',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+      {
+        order_id: 'ORD-2',
+        outlet_id: 'OUT-2',
+        brand: 'STYLE',
+        district: 'Colombo',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+      {
+        order_id: 'ORD-3',
+        outlet_id: 'OUT-3',
+        brand: 'TECH',
+        district: 'Gampaha',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_SINGLE_TRUCK',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    // Truck can only go 2 times!
+    expect(result.trips.length).toBe(2);
+    expect(result.trips[0].trip_number).toBe(1);
+    expect(result.trips[1].trip_number).toBe(2);
+    // 3rd order must be deferred
+    expect(result.deferred.length).toBe(1);
+    expect(result.deferred[0].order_id).toBe('ORD-3');
+    expect(result.deferred[0].reason_code).toBe('TIME_BUDGET_EXCEEDED');
+  });
+
+  it('accounts for existing_trips_count so vehicle with 1 existing trip can only do 1 more (Trip 2)', () => {
+    const orders: SolverOrderInput[] = [
+      {
+        order_id: 'ORD-A',
+        outlet_id: 'OUT-A',
+        brand: 'STYLE',
+        district: 'Colombo',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+      {
+        order_id: 'ORD-B',
+        outlet_id: 'OUT-B',
+        brand: 'TECH',
+        district: 'Gampaha',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_PREV_1',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+        existing_trips_count: 1, // Already did 1 trip today
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    expect(result.trips.length).toBe(1);
+    expect(result.trips[0].trip_number).toBe(2); // Assigned as Trip 2
+    expect(result.deferred.length).toBe(1);
+    expect(result.deferred[0].reason_code).toBe('TIME_BUDGET_EXCEEDED');
+  });
+
+  it('defers all orders if available vehicles have already completed 2 trips today', () => {
+    const orders: SolverOrderInput[] = [
+      {
+        order_id: 'ORD-X',
+        outlet_id: 'OUT-X',
+        brand: 'STYLE',
+        district: 'Colombo',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_MAXED',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+        existing_trips_count: 2, // Reached 2-trip max limit
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    expect(result.trips.length).toBe(0);
+    expect(result.deferred.length).toBe(1);
+  });
+
+  it('calculates trip distance and fuel consumption based on district travel matrix and km/l', () => {
+    // Colombo: depot_to_district_km = 12, inter_stop_km = 4.0.
+    // 3 stops -> dist = 2 * 12 + 2 * 4.0 = 32.0 km.
+    // km_per_l = 6.4 -> fuel = 32.0 / 6.4 = 5.0 L.
+    const orders: SolverOrderInput[] = [
+      { order_id: 'O1', brand: 'FRESH', district: 'Colombo', depot: 'PELIYAGODA', weight: 100, volume: 1 },
+      { order_id: 'O2', brand: 'FRESH', district: 'Colombo', depot: 'PELIYAGODA', weight: 100, volume: 1 },
+      { order_id: 'O3', brand: 'FRESH', district: 'Colombo', depot: 'PELIYAGODA', weight: 100, volume: 1 },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_FUEL_TEST',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+        km_per_l: 6.4,
+        fuel_remaining_l: 50,
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    expect(result.trips.length).toBe(1);
+    expect(result.trips[0].estimated_distance_km).toBe(32);
+    expect(result.trips[0].estimated_fuel_liters).toBe(5);
+    expect(result.trips[0].fuel_remaining_after_trip_l).toBe(45);
+  });
+
+  it('defers orders with FUEL_QUOTA_EXCEEDED when vehicle has insufficient fuel remaining for the trip', () => {
+    // Galle: depot_to_district_km = 120 -> round trip = 240 km. At 6 km/l, requires 40L fuel.
+    const orders: SolverOrderInput[] = [
+      {
+        order_id: 'ORD-GALLE',
+        outlet_id: 'OUT-G',
+        brand: 'FRESH',
+        district: 'Galle',
+        depot: 'PELIYAGODA',
+        weight: 500,
+        volume: 3,
+      },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_LOW_FUEL',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+        km_per_l: 6.0,
+        fuel_remaining_l: 15, // Only 15L remaining, but 40L needed!
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    expect(result.trips.length).toBe(0);
+    expect(result.deferred.length).toBe(1);
+    expect(result.deferred[0].order_id).toBe('ORD-GALLE');
+    expect(result.deferred[0].reason_code).toBe('FUEL_QUOTA_EXCEEDED');
+  });
+
+  it('depletes fuel after Trip 1 and defers Trip 2 if fuel is exhausted', () => {
+    // Colombo: 1 stop requires 24 km / 6 km/l = 4L.
+    // Galle: 1 stop requires 240 km / 6 km/l = 40L.
+    // Vehicle has 20L remaining: Trip 1 (Colombo, 4L) succeeds (leaves 16L).
+    // Trip 2 (Galle, 40L) cannot fit because 16L < 40L!
+    const orders: SolverOrderInput[] = [
+      { order_id: 'ORD-C', brand: 'FRESH', district: 'Colombo', depot: 'PELIYAGODA', weight: 500, volume: 3 },
+      { order_id: 'ORD-G', brand: 'STYLE', district: 'Galle', depot: 'PELIYAGODA', weight: 500, volume: 3 },
+    ];
+    const fleet: SolverVehicleInput[] = [
+      {
+        vehicle_id: 'VEH_LIMITED_FUEL',
+        type: 'truck',
+        temp: 'ambient',
+        weight_cap_kg: 5000,
+        volume_cap_m3: 25,
+        depot: 'PELIYAGODA',
+        status: 'available',
+        km_per_l: 6.0,
+        fuel_remaining_l: 20,
+      },
+    ];
+
+    const result = solveAllocation(orders, fleet);
+    expect(result.trips.length).toBe(1);
+    expect(result.trips[0].orders[0].order_id).toBe('ORD-C');
+    expect(result.deferred.length).toBe(1);
+    expect(result.deferred[0].order_id).toBe('ORD-G');
+    expect(result.deferred[0].reason_code).toBe('FUEL_QUOTA_EXCEEDED');
+  });
 });
