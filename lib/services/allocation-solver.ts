@@ -27,6 +27,10 @@ export interface SolverVehicleInput {
   volume_cap_m3: number;
   depot: string; // 'PELIYAGODA' | 'KANDY'
   status?: string; // 'available' | 'in_workshop' | etc.
+  existing_trips_count?: number; // Previous trips already assigned today
+  fuel_remaining_l?: number; // Fuel remaining in vehicle fuel tank / weekly quota
+  km_per_l?: number; // Fuel efficiency in km per liter
+  weekly_fuel_quota_l?: number; // Total weekly quota in liters
 }
 
 export interface ProposedTripStop {
@@ -54,6 +58,9 @@ export interface ProposedTrip {
   volume_utilization_pct: number;
   orders: SolverOrderInput[];
   stops: ProposedTripStop[];
+  estimated_distance_km?: number;
+  estimated_fuel_liters?: number;
+  fuel_remaining_after_trip_l?: number;
 }
 
 export type DeferralReasonCode =
@@ -62,7 +69,8 @@ export type DeferralReasonCode =
   | 'TIME_BUDGET_EXCEEDED'
   | 'NO_REEFER_AVAILABLE'
   | 'NO_VAN_AVAILABLE'
-  | 'WORKSHOP_FLEET_SHORTAGE';
+  | 'WORKSHOP_FLEET_SHORTAGE'
+  | 'FUEL_QUOTA_EXCEEDED';
 
 export interface DeferredOrder {
   order_id: string;
@@ -86,6 +94,7 @@ export interface AllocationKPI {
   total_volume_m3: number;
   active_vehicles_count: number;
   total_trips_count: number;
+  total_estimated_fuel_l?: number;
 }
 
 export interface SolverOptions {
@@ -99,20 +108,51 @@ export interface SolverResult {
   kpi: AllocationKPI;
 }
 
-const DEFAULT_DISTRICT_TRAVEL: Record<string, DistrictTravel> = {
-  Colombo: { depot_to_district_freeflow_min: 24, inter_stop_freeflow_min: 8 },
-  Gampaha: { depot_to_district_freeflow_min: 37, inter_stop_freeflow_min: 9 },
-  Kalutara: { depot_to_district_freeflow_min: 64, inter_stop_freeflow_min: 12 },
-  Galle: { depot_to_district_freeflow_min: 103, inter_stop_freeflow_min: 9 },
-  Matara: { depot_to_district_freeflow_min: 137, inter_stop_freeflow_min: 10 },
-  Kurunegala: { depot_to_district_freeflow_min: 127, inter_stop_freeflow_min: 19 },
-  Puttalam: { depot_to_district_freeflow_min: 173, inter_stop_freeflow_min: 24 },
-  Kandy: { depot_to_district_freeflow_min: 16, inter_stop_freeflow_min: 6 },
-  Matale: { depot_to_district_freeflow_min: 35, inter_stop_freeflow_min: 11 },
-  'Nuwara Eliya': { depot_to_district_freeflow_min: 111, inter_stop_freeflow_min: 20 },
-  Badulla: { depot_to_district_freeflow_min: 186, inter_stop_freeflow_min: 23 },
-  Kegalle: { depot_to_district_freeflow_min: 53, inter_stop_freeflow_min: 13 },
+export const DEFAULT_DISTRICT_TRAVEL: Record<string, DistrictTravel> = {
+  Colombo: { depot_to_district_freeflow_min: 24, inter_stop_freeflow_min: 8, depot_to_district_km: 12, inter_stop_km: 4.0 },
+  Gampaha: { depot_to_district_freeflow_min: 37, inter_stop_freeflow_min: 9, depot_to_district_km: 28, inter_stop_km: 7.0 },
+  Kalutara: { depot_to_district_freeflow_min: 64, inter_stop_freeflow_min: 12, depot_to_district_km: 48, inter_stop_km: 9.0 },
+  Galle: { depot_to_district_freeflow_min: 103, inter_stop_freeflow_min: 9, depot_to_district_km: 120, inter_stop_km: 10.0 },
+  Matara: { depot_to_district_freeflow_min: 137, inter_stop_freeflow_min: 10, depot_to_district_km: 160, inter_stop_km: 12.0 },
+  Kurunegala: { depot_to_district_freeflow_min: 127, inter_stop_freeflow_min: 19, depot_to_district_km: 95, inter_stop_km: 14.0 },
+  Puttalam: { depot_to_district_freeflow_min: 173, inter_stop_freeflow_min: 24, depot_to_district_km: 130, inter_stop_km: 18.0 },
+  Kandy: { depot_to_district_freeflow_min: 16, inter_stop_freeflow_min: 6, depot_to_district_km: 8, inter_stop_km: 3.0 },
+  Matale: { depot_to_district_freeflow_min: 35, inter_stop_freeflow_min: 11, depot_to_district_km: 26, inter_stop_km: 8.0 },
+  'Nuwara Eliya': { depot_to_district_freeflow_min: 111, inter_stop_freeflow_min: 20, depot_to_district_km: 78, inter_stop_km: 14.0 },
+  Badulla: { depot_to_district_freeflow_min: 186, inter_stop_freeflow_min: 23, depot_to_district_km: 130, inter_stop_km: 16.0 },
+  Kegalle: { depot_to_district_freeflow_min: 53, inter_stop_freeflow_min: 13, depot_to_district_km: 40, inter_stop_km: 10.0 },
 };
+
+/**
+ * Calculates total route distance in km for a trip:
+ * (2 * depot_to_district_km) + ((stops - 1) * inter_stop_km)
+ */
+export function calculateTripDistance(
+  district: string,
+  stopCount: number,
+  dtravelMap: Record<string, DistrictTravel> = DEFAULT_DISTRICT_TRAVEL
+): number {
+  const dt = dtravelMap[district] || { depot_to_district_km: 25, inter_stop_km: 8, depot_to_district_freeflow_min: 30, inter_stop_freeflow_min: 10 };
+  const depotKm = dt.depot_to_district_km ?? 25;
+  const interKm = dt.inter_stop_km ?? 8;
+  const interStops = Math.max(0, stopCount - 1);
+  return Number(((2 * depotKm) + (interStops * interKm)).toFixed(2));
+}
+
+/**
+ * Calculates fuel consumed in liters for a trip based on distance and vehicle km_per_l:
+ * route_distance_km / vehicle.km_per_l
+ */
+export function calculateTripFuel(
+  district: string,
+  stopCount: number,
+  kmPerL?: number,
+  dtravelMap: Record<string, DistrictTravel> = DEFAULT_DISTRICT_TRAVEL
+): number {
+  const dist = calculateTripDistance(district, stopCount, dtravelMap);
+  const efficiency = kmPerL && kmPerL > 0 ? kmPerL : 5.0; // default 5.0 km/l if unspecified
+  return Number((dist / efficiency).toFixed(2));
+}
 
 const DEFAULT_SERVICE_ALLOWANCES: Record<string, number> = {
   'FRESH:rear_dock': 15,
@@ -169,18 +209,29 @@ export function solveAllocation(
   // Track allocation state per vehicle
   interface VehicleState {
     vehicle: SolverVehicleInput;
+    remainingFuelL: number;
     trips: Array<{
       trip_number: number;
       brand: string;
       district: string;
       depot: string;
       orders: SolverOrderInput[];
+      distanceKm: number;
+      fuelLiters: number;
     }>;
   }
 
   const vehicleStates = new Map<string, VehicleState>();
   for (const v of activeVehicles) {
-    vehicleStates.set(v.vehicle_id, { vehicle: v, trips: [] });
+    const initFuel =
+      v.fuel_remaining_l !== undefined
+        ? Number(v.fuel_remaining_l)
+        : Number(v.weekly_fuel_quota_l || 500);
+    vehicleStates.set(v.vehicle_id, {
+      vehicle: v,
+      remainingFuelL: initFuel,
+      trips: [],
+    });
   }
 
   // 1. Group orders into clusters by (depot, brand, district)
@@ -241,6 +292,14 @@ export function solveAllocation(
       return { fits: false, reason: 'TIME_BUDGET_EXCEEDED' };
     }
 
+    // Check fuel quota for extended trip with additional stop
+    const newStopCount = trip.orders.length + 1;
+    const newFuel = calculateTripFuel(trip.district, newStopCount, vehicle.km_per_l, dtravel);
+    const fuelDelta = newFuel - trip.fuelLiters;
+    if (vState.remainingFuelL < fuelDelta - FLOAT_EPSILON) {
+      return { fits: false, reason: 'FUEL_QUOTA_EXCEEDED' };
+    }
+
     return { fits: true };
   };
 
@@ -250,7 +309,9 @@ export function solveAllocation(
     order: SolverOrderInput
   ): { canStart: boolean; reason?: DeferralReasonCode } => {
     const vehicle = vState.vehicle;
-    if (vState.trips.length >= 2) {
+    const existingCount = vehicle.existing_trips_count || 0;
+    // Strict constraint: one truck/van can only go at most 2 times per day
+    if (vState.trips.length + existingCount >= 2) {
       return { canStart: false, reason: 'TIME_BUDGET_EXCEEDED' };
     }
 
@@ -306,6 +367,12 @@ export function solveAllocation(
       }
     }
 
+    // Check fuel quota for this new trip
+    const tripFuel = calculateTripFuel(order.district, 1, vehicle.km_per_l, dtravel);
+    if (vState.remainingFuelL < tripFuel - FLOAT_EPSILON) {
+      return { canStart: false, reason: 'FUEL_QUOTA_EXCEEDED' };
+    }
+
     return { canStart: true };
   };
 
@@ -333,6 +400,13 @@ export function solveAllocation(
             const fitCheck = fitsInTrip(vState, i, order);
             if (fitCheck.fits) {
               trip.orders.push(order);
+              const newStopCount = trip.orders.length;
+              const newDistance = calculateTripDistance(trip.district, newStopCount, dtravel);
+              const newFuel = calculateTripFuel(trip.district, newStopCount, vState.vehicle.km_per_l, dtravel);
+              const fuelDelta = newFuel - trip.fuelLiters;
+              vState.remainingFuelL -= fuelDelta;
+              trip.distanceKm = newDistance;
+              trip.fuelLiters = newFuel;
               allocated = true;
               break;
             } else if (fitCheck.reason) {
@@ -345,9 +419,31 @@ export function solveAllocation(
 
       // 2. If not placed, try to create a new trip on an available vehicle
       if (!allocated) {
-        // Preferred candidate: vehicle with matching constraints and least existing trips
+        const depotVehicles = Array.from(vehicleStates.values()).filter(
+          (vs) => vs.vehicle.depot.toUpperCase() === order.depot.toUpperCase()
+        );
+        const hasAvailableTripSlots = depotVehicles.some(
+          (vs) => (vs.trips.length + (vs.vehicle.existing_trips_count || 0)) < 2
+        );
+        const hasFuelRemaining = depotVehicles.some(
+          (vs) => vs.remainingFuelL > 5
+        );
+        if (depotVehicles.length > 0 && !hasAvailableTripSlots) {
+          lastRejectionReason = 'TIME_BUDGET_EXCEEDED';
+        } else if (depotVehicles.length > 0 && !hasFuelRemaining) {
+          lastRejectionReason = 'FUEL_QUOTA_EXCEEDED';
+        }
+
+        // Preferred candidate: vehicle with matching constraints, available fuel, and least existing trips (max 2 per day)
         const candidateVehicles = Array.from(vehicleStates.values())
-          .filter((vs) => vs.vehicle.depot.toUpperCase() === order.depot.toUpperCase() && vs.trips.length < 2)
+          .filter((vs) => {
+            const existingCount = vs.vehicle.existing_trips_count || 0;
+            return (
+              vs.vehicle.depot.toUpperCase() === order.depot.toUpperCase() &&
+              vs.trips.length + existingCount < 2 &&
+              vs.remainingFuelL > 0
+            );
+          })
           .sort((a, b) => {
             // Prefer van for van_only, or truck for standard if available
             const aIsVan = a.vehicle.type === 'van';
@@ -361,19 +457,30 @@ export function solveAllocation(
               if (!aIsVan && bIsVan) return -1;
               if (aIsVan && !bIsVan) return 1;
             }
-            return a.trips.length - b.trips.length;
+            const aTotal = a.trips.length + (a.vehicle.existing_trips_count || 0);
+            const bTotal = b.trips.length + (b.vehicle.existing_trips_count || 0);
+            if (aTotal !== bTotal) return aTotal - bTotal;
+            // Prefer vehicle with more remaining fuel
+            return b.remainingFuelL - a.remainingFuelL;
           });
 
         for (const vState of candidateVehicles) {
           const check = canStartTrip(vState, order);
           if (check.canStart) {
-            const tripNumber = vState.trips.length + 1;
+            const existingCount = vState.vehicle.existing_trips_count || 0;
+            const tripNumber = existingCount + vState.trips.length + 1;
+            const tripDist = calculateTripDistance(order.district, 1, dtravel);
+            const tripFuel = calculateTripFuel(order.district, 1, vState.vehicle.km_per_l, dtravel);
+            vState.remainingFuelL -= tripFuel;
+
             vState.trips.push({
               trip_number: tripNumber,
               brand: order.brand,
               district: order.district,
               depot: order.depot,
               orders: [order],
+              distanceKm: tripDist,
+              fuelLiters: tripFuel,
             });
             allocated = true;
             break;
@@ -384,7 +491,8 @@ export function solveAllocation(
             ) {
               if (
                 check.reason === 'NO_REEFER_AVAILABLE' ||
-                check.reason === 'NO_VAN_AVAILABLE'
+                check.reason === 'NO_VAN_AVAILABLE' ||
+                check.reason === 'FUEL_QUOTA_EXCEEDED'
               ) {
                 lastRejectionReason = check.reason;
               }
@@ -426,6 +534,11 @@ export function solveAllocation(
           finalReason = 'NO_REEFER_AVAILABLE';
         } else if (isVanOnly && !activeVehicles.some((v) => v.type === 'van')) {
           finalReason = 'NO_VAN_AVAILABLE';
+        } else if (
+          activeCompatible.length > 0 &&
+          activeCompatible.every((v) => (v.fuel_remaining_l !== undefined ? v.fuel_remaining_l <= 0 : false))
+        ) {
+          finalReason = 'FUEL_QUOTA_EXCEEDED';
         }
 
         deferred.push({
@@ -482,6 +595,9 @@ export function solveAllocation(
         volume_utilization_pct: Number(((totalVolume / vState.vehicle.volume_cap_m3) * 100).toFixed(1)),
         orders: trip.orders,
         stops,
+        estimated_distance_km: trip.distanceKm,
+        estimated_fuel_liters: trip.fuelLiters,
+        fuel_remaining_after_trip_l: Number(Math.max(0, vState.remainingFuelL).toFixed(2)),
       });
     }
   }
@@ -490,6 +606,7 @@ export function solveAllocation(
   const fulfillmentRate = orders.length > 0 ? (plannedOrdersCount / orders.length) * 100 : 100;
   const totalWeightPlanned = proposedTrips.reduce((sum, t) => sum + t.total_weight_kg, 0);
   const totalVolumePlanned = proposedTrips.reduce((sum, t) => sum + t.total_volume_m3, 0);
+  const totalFuelPlanned = proposedTrips.reduce((sum, t) => sum + (t.estimated_fuel_liters || 0), 0);
 
   const kpi: AllocationKPI = {
     total_orders: orders.length,
@@ -500,6 +617,7 @@ export function solveAllocation(
     total_volume_m3: Number(totalVolumePlanned.toFixed(2)),
     active_vehicles_count: activeVehiclesUsed.size,
     total_trips_count: proposedTrips.length,
+    total_estimated_fuel_l: Number(totalFuelPlanned.toFixed(2)),
   };
 
   return {

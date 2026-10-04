@@ -1,6 +1,8 @@
 export interface DistrictTravel {
   depot_to_district_freeflow_min: number;
   inter_stop_freeflow_min: number;
+  depot_to_district_km?: number;
+  inter_stop_km?: number;
 }
 
 export interface VehicleInput {

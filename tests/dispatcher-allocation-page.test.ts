@@ -38,5 +38,24 @@ describe("Dispatcher Allocation Page Live Integration", () => {
     expect(code).not.toContain("INITIAL_QUEUE");
     expect(code).toContain("Loading unallocated orders...");
   });
+
+  it("includes an auto-allocation popup modal that displays generation progress and full plan review", () => {
+    expect(code).toContain("showAutoAllocateModal");
+    expect(code).toContain("Generating optimal allocations...");
+    expect(code).toContain("Auto-allocation engine");
+  });
+
+  it("strictly enforces and visualizes the rule that one truck can only go 2 times per day", () => {
+    expect(code).toContain("Max 2 trips/truck");
+    expect(code).toContain("max 2 trips per vehicle/day");
+    expect(code).toContain("vehicleTripGrouping");
+    expect(code).toContain("2 trips per vehicle");
+  });
+
+  it("allows committing all generated trips to /api/dispatcher/plans/publish", () => {
+    expect(code).toContain("/api/dispatcher/plans/publish");
+    expect(code).toContain("handleCommitAllAllocations");
+  });
 });
+
 
