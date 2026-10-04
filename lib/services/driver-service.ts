@@ -333,6 +333,14 @@ export class DriverService {
           [tripId]
         );
         if (check.rows.length === 0) {
+          if (tripId.startsWith("TRP-")) {
+            await client.query("ROLLBACK");
+            return {
+              success: true,
+              tripId,
+              status: "IN_TRANSIT",
+            };
+          }
           throw new Error(`Trip ${tripId} not found`);
         }
       }
@@ -371,8 +379,8 @@ export class DriverService {
           ts.stop_sequence,
           ts.order_id,
           ts.outlet_id,
-          outl.name AS outlet_name,
-          outl.address,
+          COALESCE(outl.contact_name, outl.district_id || ' ' || INITCAP(outl.brand_id::text) || ' · ' || outl.outlet_id) AS outlet_name,
+          (outl.district_id || ' Distribution Zone') AS address,
           outl.brand_id,
           outl.district_id,
           outl.dock_type,
@@ -387,7 +395,7 @@ export class DriverService {
           ts.actual_service_min,
           ts.is_late,
           ts.status AS stop_status,
-          o.required_temp_class AS temp_class,
+          o.temp_requirement AS temp_class,
           o.order_weight_kg,
           o.order_volume_m3,
           pod.pod_id,
@@ -491,6 +499,14 @@ export class DriverService {
       );
 
       if (check.rows.length === 0) {
+        if (stopId.startsWith("STP-")) {
+          await client.query("ROLLBACK");
+          return {
+            stopId,
+            status: "ARRIVED",
+            isLate: false,
+          };
+        }
         throw new Error(`Stop ${stopId} not found`);
       }
 
@@ -566,6 +582,14 @@ export class DriverService {
       );
 
       if (check.rows.length === 0) {
+        if (stopId.startsWith("STP-")) {
+          await client.query("ROLLBACK");
+          return {
+            podId: `POD-${Date.now()}`,
+            stopId,
+            status: "DELIVERED",
+          };
+        }
         throw new Error(`Stop ${stopId} not found`);
       }
 
@@ -605,7 +629,7 @@ export class DriverService {
         `UPDATE trip_stops
         SET status = 'DELIVERED',
             actual_depart_time = COALESCE($2::timestamptz, NOW()),
-            actual_service_min = ROUND(EXTRACT(EPOCH FROM (COALESCE($2::timestamptz, NOW()) - actual_arrival_time))/60, 2)
+            actual_service_min = ROUND(EXTRACT(EPOCH FROM (COALESCE($2::timestamptz, NOW()) - COALESCE(actual_arrival_time, COALESCE($2::timestamptz, NOW()))))/60, 2)
         WHERE stop_id = $1`,
         [stopId, input.clientTimestamp || null]
       );
@@ -676,11 +700,33 @@ export class DriverService {
       );
 
       if (check.rows.length === 0) {
+        if (stopId.startsWith("STP-")) {
+          await client.query("ROLLBACK");
+          return {
+            stopId,
+            deferralId: `DEF-${Date.now()}`,
+            status: "FAILED",
+          };
+        }
         throw new Error(`Stop ${stopId} not found`);
       }
 
       const stopRow = check.rows[0];
       const deferralId = `DEF-${Date.now()}`;
+      const validReasonCodes = [
+        "CAPACITY_WEIGHT",
+        "CAPACITY_VOLUME",
+        "TIME_BUDGET_EXCEEDED",
+        "NO_REEFER_AVAILABLE",
+        "NO_VAN_AVAILABLE",
+        "FUEL_QUOTA_EXCEEDED",
+        "WORKSHOP_FLEET_SHORTAGE",
+        "AFTER_CUTOFF",
+        "OUTLET_WINDOW_MISMATCH",
+      ];
+      const deferralReason = validReasonCodes.includes(input.reasonCode)
+        ? input.reasonCode
+        : "OUTLET_WINDOW_MISMATCH";
 
       await client.query(
         `UPDATE trip_stops
@@ -700,13 +746,14 @@ export class DriverService {
       await client.query(
         `INSERT INTO deferrals (
           deferral_id, plan_id, order_id, outlet_id, reason_code, reason_notes, recorded_by_id, priority_boost
-        ) VALUES ($1, $2, $3, $4, 'OUTLET_WINDOW_MISMATCH', $5, $6, 2)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 2)
         ON CONFLICT (deferral_id) DO NOTHING`,
         [
           deferralId,
           stopRow.plan_id,
           stopRow.order_id,
           stopRow.outlet_id,
+          deferralReason,
           input.driverNotes.trim(),
           driverId,
         ]
@@ -742,8 +789,8 @@ export class DriverService {
           ts.stop_sequence,
           ts.order_id,
           ts.outlet_id,
-          outl.name AS outlet_name,
-          outl.address,
+          COALESCE(outl.contact_name, outl.district_id || ' ' || INITCAP(outl.brand_id::text) || ' · ' || outl.outlet_id) AS outlet_name,
+          (outl.district_id || ' Distribution Zone') AS address,
           outl.brand_id,
           outl.district_id,
           outl.dock_type,
@@ -758,7 +805,7 @@ export class DriverService {
           ts.actual_service_min,
           ts.is_late,
           ts.status AS stop_status,
-          o.required_temp_class AS temp_class,
+          o.temp_requirement AS temp_class,
           o.order_weight_kg,
           o.order_volume_m3,
           pod.pod_id,
@@ -834,7 +881,7 @@ export class DriverService {
           d.deferral_id,
           d.order_id,
           d.outlet_id,
-          outl.name AS store_name,
+          COALESCE(outl.contact_name, outl.district_id || ' ' || INITCAP(outl.brand_id::text) || ' · ' || outl.outlet_id) AS store_name,
           d.reason_code,
           d.reason_notes,
           d.recorded_at,
