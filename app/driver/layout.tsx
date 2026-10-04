@@ -3,6 +3,8 @@
 import React from "react";
 import { Route, MapPin, CheckCircle2, AlertTriangle } from "lucide-react";
 import Header, { type HeaderNavItem } from "../../components/layout/header";
+import { OfflineSyncProvider } from "../../components/offline/offline-sync-provider";
+import { ServiceWorkerRegister } from "../../components/pwa/service-worker-register";
 
 const DRIVER_TABS: HeaderNavItem[] = [
   { name: "Run sheet",    icon: Route,         href: "/driver" },
@@ -13,7 +15,8 @@ const DRIVER_TABS: HeaderNavItem[] = [
 
 export default function DriverLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <OfflineSyncProvider>
+      <ServiceWorkerRegister />
       <Header
         navItems={DRIVER_TABS}
         currentRole="Driver"
@@ -21,6 +24,6 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
         brandSubtitle="Driver"
       />
       {children}
-    </>
+    </OfflineSyncProvider>
   );
 }

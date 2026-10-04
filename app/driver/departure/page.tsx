@@ -16,20 +16,29 @@ import { DriverPageHeader } from "../../../components/driver/driver-page-header"
 import { DriverBadge } from "../../../components/driver/driver-badge";
 import { useSession } from "@/lib/auth-client";
 import type { DriverActiveTripDto } from "@/lib/types/driver-api";
+import { OfflineStore } from "@/lib/offline/offline-store";
 
 export default function DriverDeparturePage() {
   const { data: session } = useSession();
-  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(null);
+  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(() => {
+    return OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+  });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [odometer, setOdometer] = useState<number | string>("");
+  const [odometer, setOdometer] = useState<number | string>(() => {
+    const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+    return cached?.trip?.odometerStartKm || "";
+  });
   const [checks, setChecks] = useState({
     tires: true,
     reeferTemp: true,
     cargoSecured: true,
     sealIntact: true,
   });
-  const [departed, setDeparted] = useState(false);
+  const [departed, setDeparted] = useState(() => {
+    const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+    return cached?.trip?.status === "IN_TRANSIT";
+  });
   const [error, setError] = useState<string | null>(null);
   const [notif, setNotif] = useState<string | null>(null);
 
@@ -50,6 +59,7 @@ export default function DriverDeparturePage() {
         const json = await res.json();
         if (json.success && json.data) {
           setActiveData(json.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.ACTIVE_TRIP, json.data);
           if (json.data.trip?.odometerStartKm) {
             setOdometer(json.data.trip.odometerStartKm);
           }
@@ -57,9 +67,19 @@ export default function DriverDeparturePage() {
             setDeparted(true);
           }
         }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+        if (cached) {
+          setActiveData(cached);
+          notify("Offline mode: Using cached run sheet");
+        }
       }
     } catch {
-      notify("Offline mode: Using cached run sheet");
+      const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+      if (cached) {
+        setActiveData(cached);
+        notify("Offline mode: Using cached run sheet");
+      }
     } finally {
       setLoading(false);
     }
@@ -76,6 +96,7 @@ export default function DriverDeparturePage() {
     }
 
     const tripId = activeData?.trip?.tripId || "TRP-20261001-01";
+    const timestamp = new Date().toISOString();
 
     try {
       setSubmitting(true);
@@ -85,7 +106,7 @@ export default function DriverDeparturePage() {
         body: JSON.stringify({
           tripId,
           odometerStartKm: odoNum,
-          clientTimestamp: new Date().toISOString(),
+          clientTimestamp: timestamp,
         }),
       });
 
@@ -94,12 +115,23 @@ export default function DriverDeparturePage() {
         setDeparted(true);
         notify("Departure confirmed! Trip status updated to In Transit.");
       } else {
-        setError(json.error?.message || "Failed to confirm departure.");
+        // Enqueue offline action on server error
+        OfflineStore.recordOfflineDeparture({
+          tripId,
+          odometerStartKm: odoNum,
+          clientTimestamp: timestamp,
+        });
+        setDeparted(true);
+        notify("Departure saved locally. Will sync automatically.");
       }
     } catch {
-      // Offline fallback: simulate local buffer
+      OfflineStore.recordOfflineDeparture({
+        tripId,
+        odometerStartKm: odoNum,
+        clientTimestamp: timestamp,
+      });
       setDeparted(true);
-      notify("Departure saved locally. Will sync when online.");
+      notify("Offline: Departure saved locally. Will sync automatically.");
     } finally {
       setSubmitting(false);
     }

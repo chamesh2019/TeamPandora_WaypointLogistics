@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { LogisticsIllustration } from "@/components/auth/logistics-illustration";
@@ -80,6 +80,23 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [failCount, setFailCount] = useState(0);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsOffline(!navigator.onLine);
+
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -221,6 +238,24 @@ function LoginForm() {
           )}
 
           <form onSubmit={handleLogin} noValidate>
+            {/* Offline Alert Banner */}
+            {isOffline && (
+              <div
+                role="alert"
+                className="mb-4 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5 shadow-xs"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                <div className="space-y-0.5 text-left">
+                  <div className="font-bold text-[11px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    Internet Connection Required
+                  </div>
+                  <div className="text-[11px] leading-relaxed opacity-90">
+                    Authentication requires an active internet connection. Please connect to a network to sign in. Once signed in, offline delivery mode will be enabled for your run.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Username input */}
             <div className="login-field">
               <label htmlFor="username-input" className="login-label">
@@ -305,10 +340,12 @@ function LoginForm() {
             <button
               type="submit"
               className="login-submit"
-              disabled={loading || failCount >= 5}
+              disabled={loading || failCount >= 5 || isOffline}
             >
               {loading ? (
                 <span className="btn-spinner" />
+              ) : isOffline ? (
+                <span>Waiting for internet connection...</span>
               ) : (
                 <>
                   <span>Sign In</span>

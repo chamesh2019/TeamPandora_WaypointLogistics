@@ -15,10 +15,15 @@ import { StopNumberCell } from "../../../components/driver/stop-number-cell";
 import { DriverBadge } from "../../../components/driver/driver-badge";
 import { DriverPageHeader } from "../../../components/driver/driver-page-header";
 import type { DriverStopDto, DriverActiveTripDto } from "@/lib/types/driver-api";
+import { OfflineStore } from "@/lib/offline/offline-store";
 
 export default function DriverPodPage() {
-  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(null);
-  const [completedStops, setCompletedStops] = useState<DriverStopDto[]>([]);
+  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(() => {
+    return OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+  });
+  const [completedStops, setCompletedStops] = useState<DriverStopDto[]>(() => {
+    return OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.POD_CACHE) || [];
+  });
   const [loading, setLoading] = useState(true);
   const [selectedPod, setSelectedPod] = useState<DriverStopDto | null>(null);
   const [notif, setNotif] = useState<string | null>(null);
@@ -40,16 +45,34 @@ export default function DriverPodPage() {
       if (podRes.ok) {
         const j = await podRes.json();
         if (j.success && Array.isArray(j.data)) {
-          setCompletedStops(j.data);
+          // Merge server data with any locally captured offline PODs
+          const cachedLocal = OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.POD_CACHE) || [];
+          const localOnlyPods = cachedLocal.filter(
+            (local) => !j.data.some((remote: DriverStopDto) => remote.stopId === local.stopId)
+          );
+          const merged = [...localOnlyPods, ...j.data];
+          setCompletedStops(merged);
+          OfflineStore.cacheData(OfflineStore.KEYS.POD_CACHE, merged);
         }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.POD_CACHE);
+        if (cached) setCompletedStops(cached);
       }
       if (tripRes.ok) {
         const j = await tripRes.json();
         if (j.success) {
           setActiveData(j.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.ACTIVE_TRIP, j.data);
         }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+        if (cached) setActiveData(cached);
       }
     } catch {
+      const cachedPods = OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.POD_CACHE);
+      if (cachedPods) setCompletedStops(cachedPods);
+      const cachedTrip = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+      if (cachedTrip) setActiveData(cachedTrip);
       notify("Offline mode: Using cached completed deliveries");
     } finally {
       setLoading(false);
@@ -58,6 +81,12 @@ export default function DriverPodPage() {
 
   useEffect(() => {
     loadData();
+
+    const handleSynced = () => {
+      loadData();
+    };
+    window.addEventListener("waypoint:synced", handleSynced);
+    return () => window.removeEventListener("waypoint:synced", handleSynced);
   }, []);
 
   const trip = activeData?.trip;

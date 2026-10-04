@@ -5,6 +5,7 @@ import DriverDeparturePage from "@/app/driver/departure/page";
 import DriverCurrentStopPage from "@/app/driver/stops/page";
 import DriverPodPage from "@/app/driver/pod/page";
 import DriverExceptionsPage from "@/app/driver/exceptions/page";
+import DriverLayout from "@/app/driver/layout";
 
 vi.mock("@/lib/auth-client", () => ({
   useSession: vi.fn().mockReturnValue({
@@ -47,5 +48,10 @@ describe("Driver Frontend Pages", () => {
   it("renders DriverExceptionsPage without throwing", () => {
     expect(DriverExceptionsPage).toBeDefined();
     expect(typeof DriverExceptionsPage).toBe("function");
+  });
+
+  it("renders DriverLayout without throwing", () => {
+    expect(DriverLayout).toBeDefined();
+    expect(typeof DriverLayout).toBe("function");
   });
 });

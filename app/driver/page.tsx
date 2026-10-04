@@ -17,6 +17,7 @@ import { DriverPageHeader } from "../../components/driver/driver-page-header";
 import { useSession } from "@/lib/auth-client";
 import type { StopStatus } from "../../components/driver/stop-number-cell";
 import type { DriverActiveTripDto, DriverStopDto, DriverCurrentStopDto } from "@/lib/types/driver-api";
+import { OfflineStore } from "@/lib/offline/offline-store";
 
 interface DisplayStop {
   id: string;
@@ -49,9 +50,15 @@ function greeting() {
 
 export default function DriverPage() {
   const { data: session } = useSession();
-  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(null);
-  const [stopsList, setStopsList] = useState<DriverStopDto[]>([]);
-  const [currentData, setCurrentData] = useState<DriverCurrentStopDto | null>(null);
+  const [activeData, setActiveData] = useState<DriverActiveTripDto | null>(() => {
+    return OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+  });
+  const [stopsList, setStopsList] = useState<DriverStopDto[]>(() => {
+    return OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.STOPS) || [];
+  });
+  const [currentData, setCurrentData] = useState<DriverCurrentStopDto | null>(() => {
+    return OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+  });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [notif, setNotif] = useState<string | null>(null);
@@ -72,17 +79,43 @@ export default function DriverPage() {
 
       if (tripRes.ok) {
         const j = await tripRes.json();
-        if (j.success) setActiveData(j.data);
+        if (j.success) {
+          setActiveData(j.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.ACTIVE_TRIP, j.data);
+        }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+        if (cached) setActiveData(cached);
       }
+
       if (stopsRes.ok) {
         const j = await stopsRes.json();
-        if (j.success && Array.isArray(j.data.stops)) setStopsList(j.data.stops);
+        if (j.success && Array.isArray(j.data.stops)) {
+          setStopsList(j.data.stops);
+          OfflineStore.cacheData(OfflineStore.KEYS.STOPS, j.data.stops);
+        }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.STOPS);
+        if (cached) setStopsList(cached);
       }
+
       if (curRes.ok) {
         const j = await curRes.json();
-        if (j.success) setCurrentData(j.data);
+        if (j.success) {
+          setCurrentData(j.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.CURRENT_STOP, j.data);
+        }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+        if (cached) setCurrentData(cached);
       }
     } catch {
+      const cachedTrip = OfflineStore.getCachedData<DriverActiveTripDto>(OfflineStore.KEYS.ACTIVE_TRIP);
+      if (cachedTrip) setActiveData(cachedTrip);
+      const cachedStops = OfflineStore.getCachedData<DriverStopDto[]>(OfflineStore.KEYS.STOPS);
+      if (cachedStops) setStopsList(cachedStops);
+      const cachedCur = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+      if (cachedCur) setCurrentData(cachedCur);
       notify("Offline mode: Using cached run sheet");
     } finally {
       setLoading(false);
@@ -91,6 +124,12 @@ export default function DriverPage() {
 
   useEffect(() => {
     loadData();
+
+    const handleSynced = () => {
+      loadData();
+    };
+    window.addEventListener("waypoint:synced", handleSynced);
+    return () => window.removeEventListener("waypoint:synced", handleSynced);
   }, []);
 
   const trip = activeData?.trip;

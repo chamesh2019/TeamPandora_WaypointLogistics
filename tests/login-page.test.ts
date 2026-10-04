@@ -29,5 +29,10 @@ describe("Login Page Component Structure & Logic", () => {
     expect(code).toContain("loader");
     expect(code).toContain("driver");
     expect(code).toContain("store_manager");
+
+    // Offline internet requirement guard
+    expect(code).toContain("Internet Connection Required");
+    expect(code).toContain("isOffline");
+    expect(code).toContain("Waiting for internet connection...");
   });
 });

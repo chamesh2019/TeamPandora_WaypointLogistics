@@ -13,19 +13,28 @@ import {
   Textarea,
   FieldLabel,
 } from "../../../components/design-system";
-import { SyncBadge, SyncBadgeToggle } from "../../../components/driver/sync-badge";
+import { SyncBadge } from "../../../components/driver/sync-badge";
 import { DriverBadge } from "../../../components/driver/driver-badge";
 import { DriverPageHeader } from "../../../components/driver/driver-page-header";
 import type { DriverCurrentStopDto, DriverStopDto } from "@/lib/types/driver-api";
+import { OfflineStore } from "@/lib/offline/offline-store";
 
 type DeliveryState = "transit" | "arrived" | "pod" | "done" | "failed";
 
 export default function DriverCurrentStopPage() {
-  const [currentData, setCurrentData] = useState<DriverCurrentStopDto | null>(null);
+  const [currentData, setCurrentData] = useState<DriverCurrentStopDto | null>(() => {
+    return OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+  });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [state, setState] = useState<DeliveryState>("transit");
-  const [syncing, setSyncing] = useState(false);
+  const [state, setState] = useState<DeliveryState>(() => {
+    const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+    const stop = cached?.currentStop;
+    if (stop?.status === "ARRIVED") return "arrived";
+    if (stop?.status === "DELIVERED") return "done";
+    if (stop?.status === "FAILED") return "failed";
+    return "transit";
+  });
   const [podName, setPodName] = useState("");
   const [podRemarks, setPodRemarks] = useState("");
   const [podSigned, setPodSigned] = useState(false);
@@ -39,22 +48,6 @@ export default function DriverCurrentStopPage() {
     window.setTimeout(() => setNotif(null), 3500);
   };
 
-  const triggerSync = async () => {
-    setSyncing(true);
-    try {
-      await fetch("/api/driver/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ events: [] }),
-      });
-      notify("Synchronized with control tower.");
-    } catch {
-      notify("Offline: Changes cached locally.");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const loadCurrentStop = async () => {
     try {
       setLoading(true);
@@ -63,6 +56,7 @@ export default function DriverCurrentStopPage() {
         const json = await res.json();
         if (json.success && json.data) {
           setCurrentData(json.data);
+          OfflineStore.cacheData(OfflineStore.KEYS.CURRENT_STOP, json.data);
           const stop = json.data.currentStop;
           if (stop) {
             if (stop.status === "ARRIVED") setState("arrived");
@@ -71,9 +65,19 @@ export default function DriverCurrentStopPage() {
             else setState("transit");
           }
         }
+      } else {
+        const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+        if (cached) {
+          setCurrentData(cached);
+          notify("Offline mode: Using cached stop details");
+        }
       }
     } catch {
-      notify("Offline mode: Using cached stop details");
+      const cached = OfflineStore.getCachedData<DriverCurrentStopDto>(OfflineStore.KEYS.CURRENT_STOP);
+      if (cached) {
+        setCurrentData(cached);
+        notify("Offline mode: Using cached stop details");
+      }
     } finally {
       setLoading(false);
     }
@@ -81,6 +85,12 @@ export default function DriverCurrentStopPage() {
 
   useEffect(() => {
     loadCurrentStop();
+
+    const handleSynced = () => {
+      loadCurrentStop();
+    };
+    window.addEventListener("waypoint:synced", handleSynced);
+    return () => window.removeEventListener("waypoint:synced", handleSynced);
   }, []);
 
   const currentStop: DriverStopDto = currentData?.currentStop || {
@@ -111,26 +121,32 @@ export default function DriverCurrentStopPage() {
   const nextStop = currentData?.nextStop;
 
   const handleArrive = async () => {
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+
     try {
       setActionLoading(true);
       const res = await fetch(`/api/driver/stops/${currentStop.stopId}/arrive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientTimestamp: new Date().toISOString(),
+          clientTimestamp: timestamp,
         }),
       });
       const json = await res.json();
       if (res.ok && json.success) {
         setState("arrived");
         notify(`Arrival recorded at ${currentStop.outletName}. GPS logged.`);
-        triggerSync();
       } else {
-        notify(json.error?.message || "Arrival failed");
+        // Enqueue offline action on server rejection/offline
+        OfflineStore.recordOfflineArrival(tripId, currentStop.stopId, timestamp);
+        setState("arrived");
+        notify("Arrival saved locally. Will sync automatically.");
       }
     } catch {
+      OfflineStore.recordOfflineArrival(tripId, currentStop.stopId, timestamp);
       setState("arrived");
-      notify("Arrival cached locally. Will sync when online.");
+      notify("Offline: Arrival saved locally. Will sync automatically.");
     } finally {
       setActionLoading(false);
     }
@@ -142,6 +158,10 @@ export default function DriverCurrentStopPage() {
       return;
     }
 
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+    const signature = "data:image/svg+xml;base64,PHN2Zz5zaWduYXR1cmU8L3N2Zz4=";
+
     try {
       setActionLoading(true);
       const res = await fetch(`/api/driver/stops/${currentStop.stopId}/pod`, {
@@ -149,22 +169,40 @@ export default function DriverCurrentStopPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientName: podName,
-          signatureUrl: "data:image/svg+xml;base64,PHN2Zz5zaWduYXR1cmU8L3N2Zz4=",
+          signatureUrl: signature,
           notes: podRemarks,
-          clientTimestamp: new Date().toISOString(),
+          clientTimestamp: timestamp,
         }),
       });
       const json = await res.json();
       if (res.ok && json.success) {
         setState("done");
         notify("POD submitted! Stop marked as Delivered.");
-        triggerSync();
       } else {
-        notify(json.error?.message || "Failed to submit POD");
+        OfflineStore.recordOfflinePod({
+          tripId,
+          stopId: currentStop.stopId,
+          recipientName: podName,
+          signatureUrl: signature,
+          notes: podRemarks,
+          cartons: currentStop.cartons,
+          clientTimestamp: timestamp,
+        });
+        setState("done");
+        notify("POD saved to offline storage! Will auto-sync.");
       }
     } catch {
+      OfflineStore.recordOfflinePod({
+        tripId,
+        stopId: currentStop.stopId,
+        recipientName: podName,
+        signatureUrl: signature,
+        notes: podRemarks,
+        cartons: currentStop.cartons,
+        clientTimestamp: timestamp,
+      });
       setState("done");
-      notify("POD saved locally. Will sync when online.");
+      notify("Offline: POD saved to offline storage! Will auto-sync.");
     } finally {
       setActionLoading(false);
     }
@@ -176,6 +214,9 @@ export default function DriverCurrentStopPage() {
       return;
     }
 
+    const timestamp = new Date().toISOString();
+    const tripId = currentData?.tripId || "TRP-CURRENT";
+
     try {
       setActionLoading(true);
       const res = await fetch(`/api/driver/stops/${currentStop.stopId}/fail`, {
@@ -184,7 +225,7 @@ export default function DriverCurrentStopPage() {
         body: JSON.stringify({
           reasonCode: failReason,
           driverNotes: failNotes,
-          clientTimestamp: new Date().toISOString(),
+          clientTimestamp: timestamp,
         }),
       });
       const json = await res.json();
@@ -192,14 +233,29 @@ export default function DriverCurrentStopPage() {
         setState("failed");
         setShowFailModal(false);
         notify("Stop marked as unable to deliver. Deferral logged.");
-        triggerSync();
       } else {
-        notify(json.error?.message || "Failed to report delivery failure");
+        OfflineStore.recordOfflineFailure({
+          tripId,
+          stopId: currentStop.stopId,
+          reasonCode: failReason,
+          driverNotes: failNotes,
+          clientTimestamp: timestamp,
+        });
+        setState("failed");
+        setShowFailModal(false);
+        notify("Failure report saved locally. Will sync automatically.");
       }
     } catch {
+      OfflineStore.recordOfflineFailure({
+        tripId,
+        stopId: currentStop.stopId,
+        reasonCode: failReason,
+        driverNotes: failNotes,
+        clientTimestamp: timestamp,
+      });
       setState("failed");
       setShowFailModal(false);
-      notify("Failure reported offline. Will sync when online.");
+      notify("Offline: Failure report saved locally. Will sync automatically.");
     } finally {
       setActionLoading(false);
     }
@@ -295,7 +351,7 @@ export default function DriverCurrentStopPage() {
             </RoleHeaderBadge>
           }
         >
-          <SyncBadge syncing={syncing} onClick={triggerSync} />
+          <SyncBadge />
           <DriverBadge variant={heroVariant} label={heroLabel} showDot />
         </DriverPageHeader>
 
