@@ -24,3 +24,5 @@ yarn-error.log*
 *.pem
 *.tsbuildinfo
 coverage/
+.superpowers/
+.vscode

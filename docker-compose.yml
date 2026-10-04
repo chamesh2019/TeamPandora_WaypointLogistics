@@ -14,6 +14,8 @@ services:
       - ./db/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./db/02-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
       - ./db/03-views.sql:/docker-entrypoint-initdb.d/03-views.sql:ro
+      - ./db/04-better-auth.sql:/docker-entrypoint-initdb.d/04-better-auth.sql:ro
+      - ./db/05-auth-seed.sql:/docker-entrypoint-initdb.d/05-auth-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-waypoint_user} -d ${POSTGRES_DB:-waypoint_db}"]
       interval: 5s
@@ -24,13 +26,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
     container_name: waypoint_web
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://${POSTGRES_USER:-waypoint_user}:${POSTGRES_PASSWORD:-waypoint_secure_pass}@postgres:5432/${POSTGRES_DB:-waypoint_db}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-waypoint_better_auth_secret_key_super_secure_32chars}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - WATCHPACK_POLLING=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       postgres:
         condition: service_healthy

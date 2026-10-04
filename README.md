@@ -23,8 +23,13 @@ docker compose up -d
 Docker Compose will automatically:
 1. Pull the official `postgres:16-alpine` image.
 2. Create the volume `postgres_data`.
-3. Execute `db/01-schema.sql` to initialize all custom ENUMs, tables, foreign keys, and indexes.
-4. Execute `db/02-seed.sql` to populate the initial master data, seeded user accounts, fleet vehicles, outlets, and a realistic delivery scenario.
+3. Execute `db/01-schema.sql` (25 relational domain tables & ENUMs).
+4. Execute `db/02-seed.sql` (Master reference data, fleet, outlets, orders).
+5. Execute `db/03-views.sql` (Operational and feasibility views).
+6. Execute `db/04-better-auth.sql` (Better Auth session and user tables).
+7. Execute `db/05-auth-seed.sql` (Operational staff credential accounts).
+
+> ℹ️ **Notice for Existing Volumes**: If you have previously run `docker compose up`, PostgreSQL skips `/docker-entrypoint-initdb.d/`. Run `docker compose down -v && docker compose up -d` to re-initialize from scratch. See [Database Migrations Guide](db/MIGRATIONS.md) for full details.
 
 ### 2. Check Database Status & Health
 ```bash
@@ -36,11 +41,11 @@ docker compose ps
 docker compose exec postgres psql -U waypoint_user -d waypoint_db
 ```
 
-### 4. Stop the Database
+### 4. Stop or Reset the Database
 ```bash
 docker compose down
 ```
-To stop and reset all data volumes:
+To stop and completely reset all data volumes (re-running all migrations from scratch):
 ```bash
 docker compose down -v
 ```

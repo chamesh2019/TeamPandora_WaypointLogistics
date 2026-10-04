@@ -119,6 +119,7 @@ CREATE TABLE users (
   depot_id VARCHAR(20) REFERENCES depots(depot_id),
   outlet_id VARCHAR(20) REFERENCES outlets(outlet_id),
   phone_number VARCHAR(20),
+  status VARCHAR(20) NOT NULL DEFAULT 'Active',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
