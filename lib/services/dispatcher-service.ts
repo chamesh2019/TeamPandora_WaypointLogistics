@@ -1693,9 +1693,8 @@ export class DispatcherService {
           le.exception_id,
           le.manifest_id,
           le.exception_type,
-          le.missing_quantity,
-          le.damaged_quantity,
-          le.notes,
+          le.quantity_short,
+          le.order_id,
           le.created_at,
           lm.trip_id
         FROM loading_exceptions le
