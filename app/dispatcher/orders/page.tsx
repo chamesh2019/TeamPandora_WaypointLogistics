@@ -37,6 +37,17 @@ export default function DispatcherOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [tableSearch, setTableSearch] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const q = urlParams.get("search") || urlParams.get("q");
+      if (q) {
+        setTableSearch(q);
+      }
+    }
+  }, []);
+
   const [selectedOrder, setSelectedOrder] = useState<DispatcherOrderDto | null>(null);
   const [cutoffLocked, setCutoffLocked] = useState<boolean>(false);
   const [isNewOrderOpen, setIsNewOrderOpen] = useState<boolean>(false);
