@@ -80,10 +80,10 @@ export function getSampleOrdersAndItemsSql(): string {
   priority_score, deferred_yesterday, consecutive_skips, days_since_last_served, lifecycle_status
 )
 VALUES
-  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400, 8.50, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-001', 'OUT001', '2026-10-01', '2026-09-30 14:10:00', FALSE, 'chilled', 45, 499.50, 2.400, 8.50, FALSE, 0, 1, 'DELIVERED'),
   ('ORD-20261001-002', 'OUT001', '2026-10-01', '2026-09-30 14:12:00', FALSE, 'ambient', 60, 1100.00, 5.200, 7.50, FALSE, 0, 1, 'CONFIRMED'),
-  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'CONFIRMED'),
-  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'CONFIRMED'),
+  ('ORD-20261001-003', 'OUT002', '2026-10-01', '2026-09-30 15:00:00', FALSE, 'chilled', 25, 420.00, 2.800, 9.00, TRUE, 1, 2, 'ARRIVED'),
+  ('ORD-20261001-004', 'OUT007', '2026-10-01', '2026-09-30 15:30:00', FALSE, 'chilled', 30, 600.00, 3.200, 7.00, FALSE, 0, 1, 'IN_TRANSIT'),
   ('ORD-20261001-005', 'OUT003', '2026-10-01', '2026-09-30 13:45:00', FALSE, 'ambient', 70, 1400.00, 6.500, 6.50, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-006', 'OUT004', '2026-10-01', '2026-09-30 15:50:00', FALSE, 'ambient', 55, 980.00, 4.800, 6.00, FALSE, 0, 1, 'CONFIRMED'),
   ('ORD-20261001-007', 'OUT081', '2026-10-01', '2026-09-30 11:20:00', FALSE, 'ambient', 120, 950.00, 18.000, 6.00, FALSE, 0, 4, 'CONFIRMED'),
@@ -136,7 +136,44 @@ ON CONFLICT (item_id) DO UPDATE SET
   unit_volume_m3 = EXCLUDED.unit_volume_m3,
   sku_code = EXCLUDED.sku_code,
   product_name = EXCLUDED.product_name,
-  is_chilled = EXCLUDED.is_chilled;`;
+  is_chilled = EXCLUDED.is_chilled;
+
+INSERT INTO allocation_plans (
+  plan_id, plan_date, depot_id, dispatcher_id, status, total_orders, served_orders, deferred_orders, total_weight_kg, total_volume_m3, published_at
+) VALUES (
+  'PLAN-20261001-01', '2026-10-01', 'PELIYAGODA', 'usr-disp-001', 'PUBLISHED', 3, 3, 0, 1519.50, 8.400, NOW()
+) ON CONFLICT (plan_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  total_orders = EXCLUDED.total_orders,
+  served_orders = EXCLUDED.served_orders;
+
+INSERT INTO trips (
+  trip_id, plan_id, vehicle_id, trip_number, brand_id, district_id, depot_id, driver_id, status, total_orders_count, total_weight_kg, total_volume_m3, outbound_travel_min, inter_stop_travel_min, total_handling_min, total_trip_minutes, max_time_budget_min, planned_departure_time, planned_return_time, actual_departure_time, odometer_start_km, estimated_fuel_liters
+) VALUES (
+  'TRP-20261001-01', 'PLAN-20261001-01', 'VEH001', 1, 'FRESH', 'Colombo', 'PELIYAGODA', 'usr-driv-001', 'IN_TRANSIT', 3, 1519.50, 8.400, 25.00, 35.00, 55.00, 115.00, 270, '04:00:00', '08:30:00', '2026-10-01 04:05:00', 48250, 22.50
+) ON CONFLICT (trip_id) DO UPDATE SET
+  driver_id = EXCLUDED.driver_id,
+  status = EXCLUDED.status,
+  odometer_start_km = EXCLUDED.odometer_start_km;
+
+INSERT INTO trip_stops (
+  stop_id, trip_id, order_id, outlet_id, stop_sequence, load_sequence, planned_arrival_time, predicted_service_min, predicted_late_prob, actual_arrival_time, actual_depart_time, actual_service_min, is_late, status
+) VALUES
+  ('STP-20261001-01', 'TRP-20261001-01', 'ORD-20261001-001', 'OUT001', 1, 3, '04:20:00', 18.00, 0.05, '2026-10-01 04:22:00', '2026-10-01 04:40:00', 18.00, FALSE, 'DELIVERED'),
+  ('STP-20261001-02', 'TRP-20261001-01', 'ORD-20261001-003', 'OUT002', 2, 2, '05:00:00', 20.00, 0.10, '2026-10-01 05:05:00', NULL, NULL, FALSE, 'ARRIVED'),
+  ('STP-20261001-03', 'TRP-20261001-01', 'ORD-20261001-004', 'OUT007', 3, 1, '05:45:00', 22.00, 0.08, NULL, NULL, NULL, FALSE, 'PENDING')
+ON CONFLICT (stop_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  actual_arrival_time = EXCLUDED.actual_arrival_time,
+  actual_depart_time = EXCLUDED.actual_depart_time;
+
+INSERT INTO proof_of_deliveries (
+  pod_id, stop_id, order_id, driver_id, recipient_name, recipient_title, signature_url, photo_urls, delivered_at, notes
+) VALUES (
+  'POD-20261001-044000', 'STP-20261001-01', 'ORD-20261001-001', 'usr-driv-001', 'Sunil Jayasuriya', 'Store Manager', 'data:image/svg+xml;base64,PHN2Zz5zaWc8L3N2Zz4=', '[]'::jsonb, '2026-10-01 04:40:00', 'Delivered in full, temperature compliance verified'
+) ON CONFLICT (pod_id) DO UPDATE SET
+  recipient_name = EXCLUDED.recipient_name,
+  signature_url = EXCLUDED.signature_url;`;
 }
 
 export function generateSqlSeed(): string {
